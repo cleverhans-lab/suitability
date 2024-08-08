@@ -56,7 +56,7 @@ def get_dollarstreet(root_dir, split, batch_size, shuffle, num_workers, pre_filt
     csv_name = f"images_v2_imagenet_{split}.csv"
 
     dataset = DollarStreetDataset(
-        csv_file=os.path.join(root_dir, csv_name),
+        csv_file_path=os.path.join(root_dir, csv_name),
         root_dir=root_dir,
         pre_filter=pre_filter
     )
