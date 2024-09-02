@@ -124,8 +124,8 @@ def main(args):
         os.makedirs(args.log_dir)
 
     # Replace these with code to initialize your DataLoader
-    train_loader = get_dollarstreet(args.root_dir, "train", args.batch_size, shuffle=True, num_workers=4)
-    test_loader = get_dollarstreet(args.root_dir, "test", args.batch_size, shuffle=False, num_workers=4)
+    train_loader = get_dollarstreet(args.root_dir, "train", args.batch_size, shuffle=True, num_workers=4) #pre_filter=lambda x: x['region.id'] == 'eu'
+    test_loader = get_dollarstreet(args.root_dir, "test", args.batch_size, shuffle=False, num_workers=4) # pre_filter=lambda x: x['region.id'] == 'eu'
 
     train_model(train_loader, test_loader, model, criterion, optimizer, scheduler, args.epochs, args.log_dir, device)
 

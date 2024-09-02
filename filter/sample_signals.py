@@ -23,16 +23,31 @@ class ConfidenceSignal(SampleSignal):
     '''
     Signal that evaluates the confidence of a model on a sample level.
     '''
+    def __init__(self, model, dataloader, device):
+        super().__init__(model, dataloader, device)
+
     def evaluate(self):
         self.model.eval()
         confidences = []
+        correctness = []
+
         with torch.no_grad():
-            for data in self.dataloader:
-                inputs, _ = data
-                inputs = inputs.to(self.device)
+            for inputs, labels in self.dataloader:
+                inputs, labels = inputs.to(self.device), labels.to(self.device)
                 outputs = self.model(inputs)
-                confidences.append(F.softmax(outputs, dim=1).max(dim=1)[0].cpu().numpy())
-        return np.concatenate(confidences)
+                
+                # Get confidence scores using softmax and taking the max
+                softmax_outputs = F.softmax(outputs, dim=1)
+                confidences_batch = softmax_outputs.max(dim=1)[0].cpu().numpy()
+                
+                # Calculate correctness (True for correct predictions, False for incorrect)
+                predictions = torch.argmax(outputs, dim=1)
+                correctness_batch = predictions.eq(labels).cpu().numpy()
+
+                confidences.extend(confidences_batch)
+                correctness.extend(correctness_batch)
+
+        return np.array(confidences), np.array(correctness, dtype=bool)
     
 
 class DecisionBoundarySignal(SampleSignal):
