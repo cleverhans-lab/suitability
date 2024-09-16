@@ -55,11 +55,12 @@ class DecisionBoundarySignal(SampleSignal):
     Signal that evaluates the distance of a sample to the decision boundary of a model.
     Loosely based on https://github.com/cleverhans-lab/dataset-inference/blob/main/src/attacks.py.
     '''
-    def __init__(self, model, dataloader, device, max_steps, metric, perturbation):
+    def __init__(self, model, dataloader, device, max_steps, metric, perturbation, noise_consistent=False):
         super().__init__(model, dataloader, device)
         self.max_steps = max_steps
         self.metric = metric
         self.perturbation = perturbation
+        self.noise_consistent = noise_consistent
 
     def evaluate(self):
         assert self.metric in ["l1", "l2", "linf"], f"Metric {self.metric} not supported, pick one of ['l1', 'l2', 'linf']"
@@ -79,16 +80,32 @@ class DecisionBoundarySignal(SampleSignal):
                 inputs = inputs.to(self.device)
                 predictions = torch.argmax(self.model(inputs), dim=1)
 
-                max_step = torch.ones(inputs.size(0)).to(self.device)
+                max_step = torch.zeros(inputs.size(0)).to(self.device)
                 remaining = torch.ones(inputs.size(0)).to(self.device).bool()
                 delta = noise[self.metric](inputs)
-                
+                base_delta = delta.clone()
+
                 for i in range(1, self.max_steps):
-                    preds = self.model(inputs+i*delta)
-                    remaining = remaining & (torch.max(preds.data, 1)[1] == predictions)
-                    max_step[remaining] = i*torch.ones_like(max_step[remaining])
                     if remaining.sum() == 0:
                         break
+
+                    # Apply perturbation only to the remaining inputs
+                    inputs_r = inputs[remaining]
+                    delta_r = delta[remaining]
+
+                    preds = self.model(inputs_r + delta_r)
+                    new_remaining = (torch.argmax(preds.data, 1) == predictions[remaining])
+                    
+                    remaining[remaining] = new_remaining
+                    max_step[remaining] = i
+
+                    # Update delta only for the remaining inputs
+                    if self.noise_consistent:
+                        delta_r = (i+1) * base_delta[remaining]
+                    else:
+                        delta_r = (i+1) * noise[self.metric](inputs_r)
+                    delta[remaining] = delta_r
+                
                 max_mag_per_image = np.append(max_mag_per_image, max_step.cpu().numpy())
 
         return max_mag_per_image
