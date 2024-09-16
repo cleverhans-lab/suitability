@@ -12,36 +12,85 @@ def t_test(sample1, sample2, equal_var=False):
     Returns: t-statistic, p-value
     '''
     t_stat, p_value = stats.ttest_ind(sample1, sample2, equal_var=equal_var)
-    return t_stat, p_value
+    return {
+        "t_statistic": t_stat,
+        "p_value": p_value
+    }
 
 
-def non_inferiority_test(sample1, sample2, threshold=0, equal_var=False, increase_good=True):
+def non_inferiority_ztest(array1, array2, margin=0, increase_good=True, alpha=0.05):
     '''
-    Perform a non-inferiority test for two samples.
+    Perform a non-inferiority z-test for two arrays.
+    Use when: large sample size, approximately normal data distribution, assumes known population variances
+    array1: array of values for sample 1
+    array2: array of values for sample 2
+    margin: non-inferiority margin (threshold for difference in means)
+    increase_good: if True, Ho: mean2 <= mean1 - threshold. Else Ho: mean2 >= mean1 + threshold.
+    alpha: significance level
+    Returns: mean_diff, z_score, p_value, reject_null
+    '''
+
+    # Calculate the mean and standard deviation of both arrays
+    mean1 = np.mean(array1)
+    mean2 = np.mean(array2)
+    std1 = np.std(array1, ddof=1)
+    std2 = np.std(array2, ddof=1)
+    
+    # Calculate the difference in means
+    if increase_good:
+        mean_diff = mean1 - mean2
+    else:
+        mean_diff = mean2 - mean1
+    
+    # Calculate the standard error of the difference
+    se_diff = np.sqrt((std1**2 / len(array1)) + (std2**2 / len(array2)))
+    
+    # Calculate the Z-score
+    z_score = (mean_diff - margin) / se_diff
+    
+    # Calculate the p-value
+    p_value = stats.norm.cdf(z_score)
+    
+    return {
+        "mean_diff": mean_diff,
+        "z_score": z_score,
+        "p_value": p_value,
+        "reject_null": p_value < alpha
+    }
+
+
+def non_inferiority_ttest(sample1, sample2, margin=0, increase_good=True, equal_var=False, alpha=0.05):
+    '''
+    Perform a non-inferiority t-test for two samples.
+    Use when: small sample size, unequal population variances, adjusts for dof, accounts for sample size differences
     sample1: array of values for sample 1 (typically validation data provided by model provider)
     sample2: array of values for sample 2 (typically sample provided by model user)
-    threshold: non-inferiority threshold (e.g., 0.05 for 5%, relative to mean of sample1)
+    margin: non-inferiority margin (threshold for difference in means)
     equal_var: if False, uses Welch's t-test.
     increase_good: if True, Ho: mean2 <= mean1 - threshold. Else Ho: mean2 >= mean1 + threshold.
-    Returns: t-statistic, p-value
+    Returns: t_statistic, p_value, reject_null
     '''
-    if threshold != 0:
-        difference = threshold * np.mean(sample1)
-        if increase_good:
-            sample2 += difference
-        else:
-            sample2 -= difference
+    if increase_good:
+        sample2_diff = sample2 + margin
+    else:
+        sample2_diff = sample2 - margin
 
     # Perform two-sided t-test
-    t_stat, p_value_two_sided = stats.ttest_ind(sample1, sample2, equal_var=equal_var)
+    t_stat, p_value_two_sided = stats.ttest_ind(sample1, sample2_diff, equal_var=equal_var)
+
+    is_neg = t_stat < 0
     
     # Adjust for one-sided test (upper-tailed)
-    if increase_good:
+    if increase_good and is_neg or not increase_good and not is_neg:
         p_value_one_sided = p_value_two_sided / 2
     else:
         p_value_one_sided = 1 - (p_value_two_sided / 2)
     
-    return t_stat, p_value_one_sided
+    return {
+        "t_statistic": t_stat,
+        "p_value": p_value_one_sided,
+        "reject_null": p_value_one_sided < alpha
+    }
 
 
 def satterthwaite_dof(s1, n1, s2, n2):
@@ -86,7 +135,13 @@ def equivalence_test(sample1, sample2, threshold_low, threshold_upp, equal_var=F
 
 
     # Return the results
-    return t_stat_low, p_value_low, t_stat_upp, p_value_upp, dof
+    return {
+        "t_statistic_low": t_stat_low,
+        "p_value_low": p_value_low,
+        "t_statistic_upp": t_stat_upp,
+        "p_value_upp": p_value_upp,
+        "dof": dof
+    }
 
 
 
