@@ -21,7 +21,7 @@ def non_inferiority_ztest(array1, array2, margin=0, increase_good=True, alpha=0.
     Use when: large sample size, approximately normal data distribution, assumes known population variances
     array1: array of values for sample 1
     array2: array of values for sample 2
-    margin: non-inferiority margin (threshold for difference in means)
+    margin: non-inferiority margin (threshold for difference in means), as a fraction of the mean of array1.
     increase_good: if True, Ho: mean2 <= mean1 - threshold. Else Ho: mean2 >= mean1 + threshold.
     alpha: significance level
     Returns: mean_diff, z_score, p_value, reject_null
@@ -43,6 +43,7 @@ def non_inferiority_ztest(array1, array2, margin=0, increase_good=True, alpha=0.
     se_diff = np.sqrt((std1**2 / len(array1)) + (std2**2 / len(array2)))
 
     # Calculate the Z-score
+    margin *= mean1
     z_score = (mean_diff - margin) / se_diff
 
     # Calculate the p-value
@@ -64,11 +65,12 @@ def non_inferiority_ttest(
     Use when: small sample size, unequal population variances, adjusts for dof, accounts for sample size differences
     sample1: array of values for sample 1 (typically validation data provided by model provider)
     sample2: array of values for sample 2 (typically sample provided by model user)
-    margin: non-inferiority margin (threshold for difference in means)
+    margin: non-inferiority margin (threshold for difference in means), as a fraction of the mean of sample1.
     equal_var: if False, uses Welch's t-test.
     increase_good: if True, Ho: mean2 <= mean1 - threshold. Else Ho: mean2 >= mean1 + threshold.
     Returns: t_statistic, p_value, reject_null
     """
+    margin *= sample1.mean()
     if increase_good:
         sample2_diff = sample2 + margin
     else:
