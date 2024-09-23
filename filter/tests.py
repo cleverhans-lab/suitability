@@ -169,3 +169,30 @@ def harmonic_mean_pvalue(p_values):
     hmp = k / np.sum(1.0 / p_values)
 
     return hmp
+
+
+def stouffer_zscore(p_values, weights=None):
+    """
+    Calculate the combined p-value using Stouffer's Z-score method.
+
+    Parameters:
+    p_values (array-like): List of p-values to combine.
+    weights (array-like, optional): Weights for each p-value, typically related to sample size.
+
+    Returns:
+    float: Combined p-value.
+    """
+    # Convert p-values to Z-scores
+    z_scores = stats.norm.ppf(1 - np.array(p_values))
+
+    # If no weights are provided, use equal weights
+    if weights is None:
+        weights = np.ones_like(p_values)
+
+    # Calculate combined Z-score
+    combined_z = np.sum(weights * z_scores) / np.sqrt(np.sum(weights**2))
+
+    # Convert combined Z-score back to a p-value
+    combined_p_value = 1 - stats.norm.cdf(combined_z)
+
+    return combined_p_value
