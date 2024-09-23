@@ -2,6 +2,8 @@
 import numpy as np
 from scipy import stats
 
+# Statistical tests
+
 
 def t_test(sample1, sample2, equal_var=False):
     """
@@ -144,3 +146,26 @@ def equivalence_test(sample1, sample2, threshold_low, threshold_upp, equal_var=F
         "p_value_upp": p_value_upp,
         "dof": dof,
     }
+
+
+# Combining p-values from tests
+def harmonic_mean_pvalue(p_values):
+    """
+    Calculate the Harmonic Mean p-value (HMP) from an array of p-values.
+
+    Parameters:
+    p_values (array-like): A list or numpy array of p-values to combine.
+
+    Returns:
+    float: The combined Harmonic Mean p-value.
+    """
+    p_values = np.array(p_values)
+
+    if np.any(p_values <= 0) or np.any(p_values > 1):
+        raise ValueError("P-values should be in the range (0, 1].")
+
+    # Calculate Harmonic Mean p-value
+    k = len(p_values)
+    hmp = k / np.sum(1.0 / p_values)
+
+    return hmp
