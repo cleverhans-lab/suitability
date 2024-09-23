@@ -87,9 +87,8 @@ def train_model(train_loader, test_loader, model, criterion, optimizer, schedule
             best_model_path = os.path.join(checkpoint_dir, 'best_model.pth')
             torch.save(model.state_dict(), best_model_path)
 
-        if epoch % 10 == 0 or epoch > 80:
-            epoch_model_path = os.path.join(checkpoint_dir, f'model_epoch_{epoch}.pth')
-            torch.save(model.state_dict(), epoch_model_path)
+        epoch_model_path = os.path.join(checkpoint_dir, f'model_epoch_{epoch}.pth')
+        torch.save(model.state_dict(), epoch_model_path)
 
         last_model_path = os.path.join(checkpoint_dir, 'last_model.pth')
         torch.save(model.state_dict(), last_model_path)
