@@ -53,6 +53,32 @@ class ConfidenceSignal(SampleSignal):
         return np.array(confidences), np.array(correctness, dtype=bool)
 
 
+class LogitSignal(SampleSignal):
+    """
+    Signal that evaluates the logits of a model on a sample level.
+    This class directly uses the logits output by the model without applying softmax.
+    """
+
+    def __init__(self, model, dataloader, device):
+        super().__init__(model, dataloader, device)
+
+    def evaluate(self):
+        self.model.eval()
+        logits_list = []
+
+        with torch.no_grad():
+            for inputs, labels in self.dataloader:
+                inputs, labels = inputs.to(self.device), labels.to(self.device)
+                outputs = self.model(inputs)  # Direct logits output
+
+                # Collect logits for each sample (detach them from the computation graph)
+                logits_batch = outputs.cpu().numpy()
+                logits_list.extend(logits_batch)
+
+        # Return logits as a numpy array, correctness as a boolean array
+        return np.array(logits_list)
+
+
 class DecisionBoundarySignal(SampleSignal):
     """
     Signal that evaluates the distance of a sample to the decision boundary of a model.
@@ -146,7 +172,7 @@ class DecisionBoundarySignal(SampleSignal):
         return max_mag_per_image
 
 
-class TrainingDynamicsSignal(SampleSignal):
+class TrainingDynamicsSignal_Basic(SampleSignal):
     """
     Signal that evaluates the training dynamics of a model on a sample level.
     It does so by calculating the number of unique predictions made by the model across different checkpoints (training epochs).
@@ -188,3 +214,85 @@ class TrainingDynamicsSignal(SampleSignal):
             unique_predictions[i] = len(np.unique(all_predictions[:, i]))
 
         return unique_predictions
+
+
+class TrainingDynamicsSignal(SampleSignal):
+    """
+    Signal that evaluates the training dynamics of a model on a sample level.
+    It calculates the prediction disagreement score across different checkpoints.
+    Based on the "SPTD for classification" algorithm introduced in https://openreview.net/pdf?id=flg9EB6ikY.
+    """
+
+    def __init__(
+        self, model, dataloader, device, model_checkpoints, k=2, max_epochs=None
+    ):
+        super().__init__(model, dataloader, device)
+        self.model_checkpoints = model_checkpoints
+        self.k = k
+        self.max_epochs = max_epochs
+        if self.max_epochs is None:
+            eps = [
+                int(checkpoint.split("/")[-1].split("_")[-1].split(".")[0])
+                for checkpoint in model_checkpoints
+            ]
+            self.max_epochs = max(eps)
+
+    def evaluate(self):
+        num_samples = len(self.dataloader.dataset)
+        num_models = len(self.model_checkpoints)
+
+        all_predictions = np.zeros((num_models, num_samples), dtype=int)
+        final_predictions = np.zeros(num_samples, dtype=int)
+        disagreement_scores = np.zeros(num_samples, dtype=float)
+        all_t = []
+        for checkpoint in self.model_checkpoints:
+            all_t.append(int(checkpoint.split("/")[-1].split("_")[-1].split(".")[0]))
+        t = np.array(all_t)
+
+        # Load the final model checkpoint
+        final_model_checkpoint = self.model_checkpoints[-1]
+        model = self.model
+        model.load_state_dict(torch.load(final_model_checkpoint))
+        model.to(self.device)
+        model.eval()
+
+        # Make predictions for the final model
+        sample_idx = 0
+        with torch.no_grad():
+            for data in self.dataloader:
+                inputs, _ = data
+                inputs = inputs.to(self.device)
+                outputs = model(inputs)
+                predictions = torch.argmax(outputs, dim=1).cpu().numpy()
+
+                final_predictions[sample_idx : sample_idx + len(predictions)] = (
+                    predictions
+                )
+                sample_idx += len(predictions)
+
+        # Load each model checkpoint and calculate prediction disagreements
+        for mod, checkpoint in enumerate(self.model_checkpoints[:-1]):
+            model.load_state_dict(torch.load(checkpoint))
+            model.to(self.device)
+            model.eval()
+
+            sample_idx = 0
+            with torch.no_grad():
+                for data in self.dataloader:
+                    inputs, _ = data
+                    inputs = inputs.to(self.device)
+                    outputs = model(inputs)
+                    predictions = torch.argmax(outputs, dim=1).cpu().numpy()
+
+                    all_predictions[mod, sample_idx : sample_idx + len(predictions)] = (
+                        predictions
+                    )
+                    sample_idx += len(predictions)
+
+            # Calculate the disagreement score for each sample
+            t = all_t[mod]
+            at = all_predictions[mod, :] != final_predictions
+            vt = (t / self.max_epochs) ** self.k
+            disagreement_scores += vt * at
+
+        return disagreement_scores
