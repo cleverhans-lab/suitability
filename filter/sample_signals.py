@@ -55,7 +55,7 @@ class ConfidenceSignal(SampleSignal):
 
 class LogitSignal(SampleSignal):
     """
-    Signal that evaluates the logits of a model on a sample level.
+    Signal that evaluates the max logits of a model on a sample level.
     This class directly uses the logits output by the model without applying softmax.
     """
 
@@ -76,7 +76,7 @@ class LogitSignal(SampleSignal):
                 logits_list.extend(logits_batch)
 
         # Return logits as a numpy array, correctness as a boolean array
-        return np.array(logits_list)
+        return np.max(np.array(logits_list), dim=1)
 
 
 class DecisionBoundarySignal(SampleSignal):
