@@ -76,7 +76,7 @@ class WILDSDataset(Dataset):
             ]
 
     def __len__(self):
-        return len(self.dataset)
+        return len(self.filtered_indices)
 
     def __getitem__(self, idx):
         return self.dataset[self.filtered_indices[idx]]
