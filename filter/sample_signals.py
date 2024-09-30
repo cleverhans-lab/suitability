@@ -12,9 +12,8 @@ class SampleSignal:
     Base class for evaluating signals on a sample level.
     """
 
-    def __init__(self, model, dataloader, device):
+    def __init__(self, model, device):
         self.model = model
-        self.dataloader = dataloader
         self.device = device
 
     def evaluate(self):
@@ -26,15 +25,15 @@ class CorrectnessSignal(SampleSignal):
     Signal that evaluates the correctness of a model on a sample level.
     """
 
-    def __init__(self, model, dataloader, device):
-        super().__init__(model, dataloader, device)
+    def __init__(self, model, device):
+        super().__init__(model, device)
 
-    def evaluate(self):
+    def evaluate(self, dataloader):
         self.model.eval()
         correctness = []
 
         with torch.no_grad():
-            for inputs, labels in self.dataloader:
+            for inputs, labels in dataloader:
                 inputs, labels = inputs.to(self.device), labels.to(self.device)
                 outputs = self.model(inputs)
                 predictions = torch.argmax(outputs, dim=1)
@@ -49,33 +48,32 @@ class ConfidenceSignal(SampleSignal):
     Signal that evaluates the confidence of a model on a sample level.
     """
 
-    def __init__(self, model, dataloader, device, mode="max"):
-        super().__init__(model, dataloader, device)
-        self.mode = mode
+    def __init__(self, model, device):
+        super().__init__(model, device)
 
-    def evaluate(self):
+    def evaluate(self, dataloader, mode="max"):
         self.model.eval()
         confidences = []
 
         with torch.no_grad():
-            for inputs, _ in self.dataloader:
+            for inputs, _ in dataloader:
                 inputs = inputs.to(self.device)
                 outputs = self.model(inputs)
 
                 # Get confidence scores using softmax
                 softmax_outputs = F.softmax(outputs, dim=1)
-                if self.mode == "max":
+                if mode == "max":
                     confidences_batch = softmax_outputs.max(dim=1)[0].cpu().numpy()
-                elif self.mode == "mean":
+                elif mode == "mean":
                     confidences_batch = softmax_outputs.mean(dim=1).cpu().numpy()
-                elif self.mode == "median":
+                elif mode == "median":
                     confidences_batch = np.median(softmax_outputs.cpu().numpy(), axis=1)
-                elif self.mode == "min":
+                elif mode == "min":
                     confidences_batch = softmax_outputs.min(dim=1)[0].cpu().numpy()
-                elif self.mode == "std":
+                elif mode == "std":
                     confidences_batch = np.std(softmax_outputs.cpu().numpy(), axis=1)
                 else:
-                    raise ValueError(f"Invalid mode: {self.mode}")
+                    raise ValueError(f"Invalid mode: {mode}")
 
                 confidences.extend(confidences_batch)
 
@@ -88,31 +86,30 @@ class LogitSignal(SampleSignal):
     This class directly uses the logits output by the model without applying softmax.
     """
 
-    def __init__(self, model, dataloader, device, mode="max"):
-        super().__init__(model, dataloader, device)
-        self.mode = mode
+    def __init__(self, model, device):
+        super().__init__(model, device)
 
-    def evaluate(self):
+    def evaluate(self, dataloader, mode="max"):
         self.model.eval()
         logits_list = []
 
         with torch.no_grad():
-            for inputs, _ in self.dataloader:
+            for inputs, _ in dataloader:
                 inputs = inputs.to(self.device)
                 outputs = self.model(inputs)  # Direct logits output
 
-                if self.mode == "max":
+                if mode == "max":
                     logits_batch = outputs.max(dim=1)[0].cpu().numpy()
-                elif self.mode == "mean":
+                elif mode == "mean":
                     logits_batch = outputs.mean(dim=1).cpu().numpy()
-                elif self.mode == "median":
+                elif mode == "median":
                     logits_batch = np.median(outputs.cpu().numpy(), axis=1)
-                elif self.mode == "min":
+                elif mode == "min":
                     logits_batch = outputs.min(dim=1)[0].cpu().numpy()
-                elif self.mode == "std":
+                elif mode == "std":
                     logits_batch = np.std(outputs.cpu().numpy(), axis=1)
                 else:
-                    raise ValueError(f"Invalid mode: {self.mode}")
+                    raise ValueError(f"Invalid mode: {mode}")
 
                 # Collect logits for each sample
                 logits_list.extend(logits_batch)
@@ -127,28 +124,17 @@ class DecisionBoundarySignal(SampleSignal):
     Loosely based on https://github.com/cleverhans-lab/dataset-inference/blob/main/src/attacks.py.
     """
 
-    def __init__(
-        self,
-        model,
-        dataloader,
-        device,
-        max_steps,
-        metric,
-        perturbation,
-        noise_consistent=False,
-    ):
-        super().__init__(model, dataloader, device)
-        self.max_steps = max_steps
-        self.metric = metric
-        self.perturbation = perturbation
-        self.noise_consistent = noise_consistent
+    def __init__(self, model, device):
+        super().__init__(model, device)
 
-    def evaluate(self):
-        assert self.metric in [
+    def evaluate(
+        self, dataloader, max_steps, metric, perturbation, noise_consistent=False
+    ):
+        assert metric in [
             "l1",
             "l2",
             "linf",
-        ], f"Metric {self.metric} not supported, pick one of ['l1', 'l2', 'linf']"
+        ], f"Metric {metric} not supported, pick one of ['l1', 'l2', 'linf']"
 
         self.model.eval()
         max_mag_per_image = np.array([])
@@ -157,47 +143,45 @@ class DecisionBoundarySignal(SampleSignal):
         def l1_noise(X):
             return (
                 torch.from_numpy(
-                    np.random.laplace(
-                        loc=0.0, scale=2 * self.perturbation, size=X.shape
-                    )
+                    np.random.laplace(loc=0.0, scale=2 * perturbation, size=X.shape)
                 )
                 .float()
                 .to(self.device)
             )
 
         def l2_noise(X):
-            return torch.normal(0, self.perturbation, size=X.shape).to(self.device)
+            return torch.normal(0, perturbation, size=X.shape).to(self.device)
 
         def linf_noise(X):
             return (
                 torch.empty_like(X)
-                .uniform_(-self.perturbation, self.perturbation)
+                .uniform_(-perturbation, perturbation)
                 .to(self.device)
             )
 
         noise = {"l1": l1_noise, "l2": l2_noise, "linf": linf_noise}
 
         with torch.no_grad():  # No need to calculate gradients for evaluation
-            for data in self.dataloader:
+            for data in dataloader:
                 inputs, _ = data
                 inputs = inputs.to(self.device)
                 predictions = torch.argmax(self.model(inputs), dim=1)
 
                 max_step = torch.zeros(inputs.size(0)).to(self.device)
                 remaining = torch.ones(inputs.size(0)).to(self.device).bool()
-                delta = noise[self.metric](inputs)
+                delta = noise[metric](inputs)
                 base_delta = delta.clone()
 
-                for i in range(1, self.max_steps):
+                for i in range(1, max_steps):
                     if remaining.sum() == 0:
                         break
 
                     inputs_r = inputs[remaining]
 
-                    if self.noise_consistent:
+                    if noise_consistent:
                         dlt_r = i * base_delta[remaining]
                     else:
-                        dlt_r = i * noise[self.metric](inputs_r)
+                        dlt_r = i * noise[metric](inputs_r)
 
                     preds_r = self.model(inputs_r + dlt_r)
 
@@ -220,19 +204,18 @@ class TrainingDynamicsSignal_Basic(SampleSignal):
     It does so by calculating the number of unique predictions made by the model across different checkpoints (training epochs).
     """
 
-    def __init__(self, model, dataloader, device, model_checkpoints):
-        super().__init__(model, dataloader, device)
-        self.model_checkpoints = model_checkpoints
+    def __init__(self, model, device):
+        super().__init__(model, device)
 
-    def evaluate(self):
-        num_samples = len(self.dataloader.dataset)
-        num_models = len(self.model_checkpoints)
+    def evaluate(self, dataloader, model_checkpoints):
+        num_samples = len(dataloader.dataset)
+        num_models = len(model_checkpoints)
 
         all_predictions = np.zeros((num_models, num_samples), dtype=int)
         unique_predictions = np.zeros(num_samples, dtype=int)
 
         # Load each model checkpoint and make predictions on the dataset
-        for i, checkpoint in enumerate(self.model_checkpoints):
+        for i, checkpoint in enumerate(model_checkpoints):
             model = self.model
             model.load_state_dict(torch.load(checkpoint))
             model.to(self.device)
@@ -240,7 +223,7 @@ class TrainingDynamicsSignal_Basic(SampleSignal):
 
             sample_idx = 0  # Index of the current sample
             with torch.no_grad():
-                for data in self.dataloader:
+                for data in dataloader:
                     inputs, _ = data
                     inputs = inputs.to(self.device)
                     outputs = model(inputs)
@@ -265,34 +248,29 @@ class TrainingDynamicsSignal(SampleSignal):
     Based on the "SPTD for classification" algorithm introduced in https://openreview.net/pdf?id=flg9EB6ikY.
     """
 
-    def __init__(
-        self, model, dataloader, device, model_checkpoints, k=2, max_epochs=None
-    ):
-        super().__init__(model, dataloader, device)
-        self.model_checkpoints = model_checkpoints
-        self.k = k
-        self.max_epochs = max_epochs
-        if self.max_epochs is None:
+    def __init__(self, model, device):
+        super().__init__(model, device)
+
+    def evaluate(self, dataloader, model_checkpoints, k=2, max_epochs=None):
+        if max_epochs is None:
             eps = [
                 int(checkpoint.split("/")[-1].split("_")[-1].split(".")[0])
                 for checkpoint in model_checkpoints
             ]
-            self.max_epochs = max(eps)
-
-    def evaluate(self):
-        num_samples = len(self.dataloader.dataset)
-        num_models = len(self.model_checkpoints)
+            max_epochs = max(eps)
+        num_samples = len(dataloader.dataset)
+        num_models = len(model_checkpoints)
 
         all_predictions = np.zeros((num_models, num_samples), dtype=int)
         final_predictions = np.zeros(num_samples, dtype=int)
         disagreement_scores = np.zeros(num_samples, dtype=float)
         all_t = []
-        for checkpoint in self.model_checkpoints:
+        for checkpoint in model_checkpoints:
             all_t.append(int(checkpoint.split("/")[-1].split("_")[-1].split(".")[0]))
         t = np.array(all_t)
 
         # Load the final model checkpoint
-        final_model_checkpoint = self.model_checkpoints[-1]
+        final_model_checkpoint = model_checkpoints[-1]
         model = self.model
         model.load_state_dict(torch.load(final_model_checkpoint))
         model.to(self.device)
@@ -301,7 +279,7 @@ class TrainingDynamicsSignal(SampleSignal):
         # Make predictions for the final model
         sample_idx = 0
         with torch.no_grad():
-            for data in self.dataloader:
+            for data in dataloader:
                 inputs, _ = data
                 inputs = inputs.to(self.device)
                 outputs = model(inputs)
@@ -313,14 +291,14 @@ class TrainingDynamicsSignal(SampleSignal):
                 sample_idx += len(predictions)
 
         # Load each model checkpoint and calculate prediction disagreements
-        for mod, checkpoint in enumerate(self.model_checkpoints[:-1]):
+        for mod, checkpoint in enumerate(model_checkpoints[:-1]):
             model.load_state_dict(torch.load(checkpoint))
             model.to(self.device)
             model.eval()
 
             sample_idx = 0
             with torch.no_grad():
-                for data in self.dataloader:
+                for data in dataloader:
                     inputs, _ = data
                     inputs = inputs.to(self.device)
                     outputs = model(inputs)
@@ -334,8 +312,7 @@ class TrainingDynamicsSignal(SampleSignal):
             # Calculate the disagreement score for each sample
             t = all_t[mod]
             at = all_predictions[mod, :] != final_predictions
-            vt = (t / self.max_epochs) ** self.k
+            vt = (t / max_epochs) ** k
             disagreement_scores += vt * at
 
         return disagreement_scores
-        
