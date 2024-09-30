@@ -33,8 +33,8 @@ class CorrectnessSignal(SampleSignal):
         correctness = []
 
         with torch.no_grad():
-            for inputs, labels in dataloader:
-                inputs, labels = inputs.to(self.device), labels.to(self.device)
+            for data in dataloader:
+                inputs, labels = data[0].to(self.device), data[1].to(self.device)
                 outputs = self.model(inputs)
                 predictions = torch.argmax(outputs, dim=1)
                 correctness_batch = predictions == labels
@@ -56,8 +56,8 @@ class ConfidenceSignal(SampleSignal):
         confidences = []
 
         with torch.no_grad():
-            for inputs, _ in dataloader:
-                inputs = inputs.to(self.device)
+            for data in dataloader:
+                inputs = data[0].to(self.device)
                 outputs = self.model(inputs)
 
                 # Get confidence scores using softmax
@@ -94,8 +94,8 @@ class LogitSignal(SampleSignal):
         logits_list = []
 
         with torch.no_grad():
-            for inputs, _ in dataloader:
-                inputs = inputs.to(self.device)
+            for data in dataloader:
+                inputs = data[0].to(self.device)
                 outputs = self.model(inputs)  # Direct logits output
 
                 if mode == "max":
@@ -163,8 +163,7 @@ class DecisionBoundarySignal(SampleSignal):
 
         with torch.no_grad():  # No need to calculate gradients for evaluation
             for data in dataloader:
-                inputs, _ = data
-                inputs = inputs.to(self.device)
+                inputs = data[0].to(self.device)
                 predictions = torch.argmax(self.model(inputs), dim=1)
 
                 max_step = torch.zeros(inputs.size(0)).to(self.device)
@@ -224,8 +223,7 @@ class TrainingDynamicsSignal_Basic(SampleSignal):
             sample_idx = 0  # Index of the current sample
             with torch.no_grad():
                 for data in dataloader:
-                    inputs, _ = data
-                    inputs = inputs.to(self.device)
+                    inputs = data[0].to(self.device)
                     outputs = model(inputs)
                     predictions = torch.argmax(outputs, dim=1).cpu().numpy()
 
@@ -280,8 +278,7 @@ class TrainingDynamicsSignal(SampleSignal):
         sample_idx = 0
         with torch.no_grad():
             for data in dataloader:
-                inputs, _ = data
-                inputs = inputs.to(self.device)
+                inputs = data[0].to(self.device)
                 outputs = model(inputs)
                 predictions = torch.argmax(outputs, dim=1).cpu().numpy()
 
@@ -299,8 +296,7 @@ class TrainingDynamicsSignal(SampleSignal):
             sample_idx = 0
             with torch.no_grad():
                 for data in dataloader:
-                    inputs, _ = data
-                    inputs = inputs.to(self.device)
+                    inputs = data[0].to(self.device)
                     outputs = model(inputs)
                     predictions = torch.argmax(outputs, dim=1).cpu().numpy()
 
