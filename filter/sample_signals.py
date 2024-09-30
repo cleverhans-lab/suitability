@@ -21,9 +21,9 @@ class SampleSignal:
         raise NotImplementedError("Subclasses should implement this method")
 
 
-class ConfidenceSignal(SampleSignal):
+class CorrectnessSignal(SampleSignal):
     """
-    Signal that evaluates the confidence of a model on a sample level.
+    Signal that evaluates the correctness of a model on a sample level.
     """
 
     def __init__(self, model, dataloader, device):
@@ -31,26 +31,55 @@ class ConfidenceSignal(SampleSignal):
 
     def evaluate(self):
         self.model.eval()
-        confidences = []
         correctness = []
 
         with torch.no_grad():
             for inputs, labels in self.dataloader:
                 inputs, labels = inputs.to(self.device), labels.to(self.device)
                 outputs = self.model(inputs)
-
-                # Get confidence scores using softmax and taking the max
-                softmax_outputs = F.softmax(outputs, dim=1)
-                confidences_batch = softmax_outputs.max(dim=1)[0].cpu().numpy()
-
-                # Calculate correctness (True for correct predictions, False for incorrect)
                 predictions = torch.argmax(outputs, dim=1)
-                correctness_batch = predictions.eq(labels).cpu().numpy()
+                correctness_batch = predictions == labels
+                correctness.extend(correctness_batch.cpu().numpy())
+
+        return np.array(correctness, dtype=bool)
+
+
+class ConfidenceSignal(SampleSignal):
+    """
+    Signal that evaluates the confidence of a model on a sample level.
+    """
+
+    def __init__(self, model, dataloader, device, mode="max"):
+        super().__init__(model, dataloader, device)
+        self.mode = mode
+
+    def evaluate(self):
+        self.model.eval()
+        confidences = []
+
+        with torch.no_grad():
+            for inputs, _ in self.dataloader:
+                inputs = inputs.to(self.device)
+                outputs = self.model(inputs)
+
+                # Get confidence scores using softmax
+                softmax_outputs = F.softmax(outputs, dim=1)
+                if self.mode == "max":
+                    confidences_batch = softmax_outputs.max(dim=1)[0].cpu().numpy()
+                elif self.mode == "mean":
+                    confidences_batch = softmax_outputs.mean(dim=1).cpu().numpy()
+                elif self.mode == "median":
+                    confidences_batch = np.median(softmax_outputs.cpu().numpy(), axis=1)
+                elif self.mode == "min":
+                    confidences_batch = softmax_outputs.min(dim=1)[0].cpu().numpy()
+                elif self.mode == "std":
+                    confidences_batch = np.std(softmax_outputs.cpu().numpy(), axis=1)
+                else:
+                    raise ValueError(f"Invalid mode: {self.mode}")
 
                 confidences.extend(confidences_batch)
-                correctness.extend(correctness_batch)
 
-        return np.array(confidences), np.array(correctness, dtype=bool)
+        return np.array(confidences)
 
 
 class LogitSignal(SampleSignal):
@@ -59,24 +88,37 @@ class LogitSignal(SampleSignal):
     This class directly uses the logits output by the model without applying softmax.
     """
 
-    def __init__(self, model, dataloader, device):
+    def __init__(self, model, dataloader, device, mode="max"):
         super().__init__(model, dataloader, device)
+        self.mode = mode
 
     def evaluate(self):
         self.model.eval()
         logits_list = []
 
         with torch.no_grad():
-            for inputs, labels in self.dataloader:
-                inputs, labels = inputs.to(self.device), labels.to(self.device)
+            for inputs, _ in self.dataloader:
+                inputs = inputs.to(self.device)
                 outputs = self.model(inputs)  # Direct logits output
 
-                # Collect logits for each sample (detach them from the computation graph)
-                logits_batch = outputs.cpu().numpy()
+                if self.mode == "max":
+                    logits_batch = outputs.max(dim=1)[0].cpu().numpy()
+                elif self.mode == "mean":
+                    logits_batch = outputs.mean(dim=1).cpu().numpy()
+                elif self.mode == "median":
+                    logits_batch = np.median(outputs.cpu().numpy(), axis=1)
+                elif self.mode == "min":
+                    logits_batch = outputs.min(dim=1)[0].cpu().numpy()
+                elif self.mode == "std":
+                    logits_batch = np.std(outputs.cpu().numpy(), axis=1)
+                else:
+                    raise ValueError(f"Invalid mode: {self.mode}")
+
+                # Collect logits for each sample
                 logits_list.extend(logits_batch)
 
         # Return logits as a numpy array, correctness as a boolean array
-        return np.max(np.array(logits_list), dim=1)
+        return np.array(logits_list)
 
 
 class DecisionBoundarySignal(SampleSignal):
@@ -296,3 +338,4 @@ class TrainingDynamicsSignal(SampleSignal):
             disagreement_scores += vt * at
 
         return disagreement_scores
+        
