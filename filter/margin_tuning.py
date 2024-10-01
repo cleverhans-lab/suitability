@@ -98,9 +98,9 @@ def tune_margin(
             if (
                 accuracy < x and p_value <= 0.05
             ):  # Accuracy is below threshold, but p-value is also below 0.05
-                print(
-                    f"Iteration {iteration}: Accuracy {accuracy:.3f} < {x}, but p-value {p_value:.3f} <= 0.05. Decreasing m to {m-delta_m:.3f}."
-                )
+                # print(
+                #     f"Iteration {iteration}: Accuracy {accuracy:.3f} < {x}, but p-value {p_value:.3f} <= 0.05. Decreasing m to {m-delta_m:.3f}."
+                # )
                 m -= delta_m  # Decrease m to make the test stricter
                 is_decreased += 1
                 break
@@ -108,9 +108,9 @@ def tune_margin(
             elif (
                 accuracy >= x and p_value > 0.05
             ):  # Accuracy is greater than threshold, but p-value is also above 0.05
-                print(
-                    f"Iteration {iteration}: Accuracy {accuracy:.3f} >= {x}, but p-value {p_value:.3f} > 0.05. Increasing m to {m+delta_m:.3f}."
-                )
+                # print(
+                #     f"Iteration {iteration}: Accuracy {accuracy:.3f} >= {x}, but p-value {p_value:.3f} > 0.05. Increasing m to {m+delta_m:.3f}."
+                # )
                 m += delta_m  # Increase m to make the test more lenient
                 is_increased += 1
                 break
