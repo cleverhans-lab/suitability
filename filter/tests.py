@@ -1,8 +1,9 @@
 # Description: Statistical tests for suitability filter
 import numpy as np
 from scipy import stats
+from statsmodels.stats.power import TTestIndPower
 
-# Statistical tests
+# Statistical tests and helper functions
 
 
 def t_test(sample1, sample2, equal_var=False):
@@ -196,3 +197,126 @@ def stouffer_zscore(p_values, weights=None):
     combined_p_value = 1 - stats.norm.cdf(combined_z)
 
     return combined_p_value
+
+
+def glass_delta(sample1, sample2, margin, increase_good=True):
+    """
+    Calculate Glass's delta effect size for two samples.
+    sample1: array of values for sample 1 (typically validation data provided by model provider)
+    sample2: array of values for sample 2 (typically sample provided by model user)
+    margin: non-inferiority margin
+    increase_good: if True, Ho: mean2 <= mean1. Else Ho: mean2 >= mean1.
+    Returns: Glass's delta effect size
+    """
+    mean1, mean2 = np.mean(sample1), np.mean(sample2)
+    std1 = np.std(sample1, ddof=1)
+
+    if increase_good:
+        glass_delta = (mean2 - (mean1 - margin)) / std1
+    else:
+        glass_delta = (mean2 - (mean1 + margin)) / std1
+
+    return glass_delta
+
+
+def cohen_d(sample1, sample2, margin, increase_good=True):
+    """
+    Calculate Cohen's d effect size for two samples.
+    sample1: array of values for sample 1 (typically validation data provided by model provider)
+    sample2: array of values for sample 2 (typically sample provided by model user)
+    margin: non-inferiority margin
+    increase_good: if True, Ho: mean2 <= mean1. Else Ho: mean2 >= mean1.
+    Returns: Cohen's d effect size
+    """
+    mean1, mean2 = np.mean(sample1), np.mean(sample2)
+    std1, std2 = np.std(sample1, ddof=1), np.std(sample2, ddof=1)
+    n1, n2 = len(sample1), len(sample2)
+
+    pooled_std = np.sqrt(((n1 - 1) * std1**2 + (n2 - 1) * std2**2) / (n1 + n2 - 2))
+
+    if increase_good:
+        cohens_d = (mean2 - (mean1 - margin)) / pooled_std
+    else:
+        cohens_d = (mean2 - (mean1 + margin)) / pooled_std
+
+    return cohens_d
+
+
+def sample_size_non_inferiority_ttest(
+    sample1,
+    sample2,
+    power,
+    margin=0,
+    increase_good=True,
+    alpha=0.05,
+    effect_method="cohen",
+):
+    """
+    Calculate the required sample size for a given power level.
+    sample1: array of values for sample 1 (typically validation data provided by model provider)
+    sample2: array of values for sample 2 (typically sample provided by model user)
+    power: desired power level (probability of rejecting the null hypothesis when it is false)
+    margin: non-inferiority margin
+    increase_good: if True, Ho: mean2 <= mean1. Else Ho: mean2 >= mean1.
+    alpha: significance level
+    effect_method: method to calculate effect size. Options: "cohen" or "glass"
+    Returns: required sample size for sample2
+    """
+    if effect_method == "cohen":
+        effect_size = cohen_d(sample1, sample2, margin, increase_good)
+    elif effect_method == "glass":
+        effect_size = glass_delta(sample1, sample2, margin, increase_good)
+    else:
+        raise ValueError("Invalid effect size method.")
+
+    if abs(effect_size) < 1e-6:
+        raise ValueError("Effect size too small for power analysis.")
+
+    analysis = TTestIndPower()
+
+    ratio = analysis.solve_power(
+        effect_size=effect_size,
+        nobs1=len(sample1),
+        alpha=alpha,
+        power=power,
+        alternative="larger" if increase_good else "smaller",
+        ratio=None,
+    )
+
+    return int(np.ceil(len(sample1) * ratio))
+
+
+def power_non_inferiority_ttest(
+    sample1, sample2, margin=0, alpha=0.05, increase_good=True, effect_method="cohen"
+):
+    """
+    Calculate the power of a non-inferiority t-test.
+    sample1: array of values for sample 1 (typically validation data provided by model provider)
+    sample2: array of values for sample 2 (typically sample provided by model user)
+    margin: non-inferiority margin
+    alpha: significance level
+    increase_good: if True, Ho: mean2 <= mean1. Else Ho: mean2 >= mean1.
+    effect_method: method to calculate effect size. Options: "cohen" or "glass"
+    Returns: power of the non-inferiority t-test
+    """
+    if effect_method == "cohen":
+        effect_size = cohen_d(sample1, sample2, margin, increase_good)
+    elif effect_method == "glass":
+        effect_size = glass_delta(sample1, sample2, margin, increase_good)
+    else:
+        raise ValueError("Invalid effect size method.")
+
+    if abs(effect_size) < 1e-6:
+        raise ValueError("Effect size too small for power analysis.")
+
+    analysis = TTestIndPower()
+
+    power = analysis.solve_power(
+        effect_size=effect_size,
+        nobs1=len(sample1),
+        alpha=alpha,
+        alternative="larger" if increase_good else "smaller",
+        ratio=len(sample2) / len(sample1),
+    )
+
+    return power
