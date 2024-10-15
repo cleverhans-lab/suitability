@@ -72,6 +72,11 @@ class ConfidenceSignal(SampleSignal):
                     confidences_batch = softmax_outputs.min(dim=1)[0].cpu().numpy()
                 elif mode == "std":
                     confidences_batch = np.std(softmax_outputs.cpu().numpy(), axis=1)
+                elif mode == "entropy":
+                    confidences_batch = -torch.sum(softmax_outputs * torch.log(softmax_outputs), dim=1).cpu().numpy()
+                elif mode == "difference_between_top_two":
+                    top_two = torch.topk(softmax_outputs, 2, dim=1).values.cpu().numpy()
+                    confidences_batch = top_two[:, 0] - top_two[:, 1]
                 else:
                     raise ValueError(f"Invalid mode: {mode}")
 
@@ -116,6 +121,68 @@ class LogitSignal(SampleSignal):
 
         # Return logits as a numpy array, correctness as a boolean array
         return np.array(logits_list)
+
+
+class LossGradientSignal(SampleSignal):
+    """
+    Signal that evaluates the gradient of the loss w.r.t. the input of a model on a sample level without accessing the labels.
+    """
+    def __init__(self, model, device):
+        super().__init__(model, device)
+
+    def evaluate(self, dataloader, mode="max"):
+        self.model.eval()
+        gradients = []
+
+        for data in dataloader:
+            inputs = data[0].to(self.device)
+            inputs.requires_grad = True
+            outputs = self.model(inputs)
+            loss = F.cross_entropy(outputs, torch.argmax(outputs, dim=1))
+
+            # Calculate the gradient of the loss w.r.t. the input
+            self.model.zero_grad()
+            loss.backward()
+            gradients_batch = inputs.grad
+
+            if mode == "max":
+                gradients_batch = gradients_batch.abs().max(dim=[2, 3])[0].cpu().numpy()
+            elif mode == "mean":
+                gradients_batch = gradients_batch.abs().mean(dim=[1, 2, 3]).cpu().numpy()  # Mean across channels, height, and width
+            elif mode == "median":
+                gradients_batch = np.median(gradients_batch.abs().cpu().numpy(), axis=(1, 2, 3))
+            elif mode == "min":
+                gradients_batch = gradients_batch.abs().min(dim=[2, 3])[0].cpu().numpy()
+            elif mode == "std":
+                gradients_batch = np.std(gradients_batch.abs().cpu().numpy(), axis=(1, 2, 3))
+            else:
+                raise ValueError(f"Invalid mode: {mode}")
+
+            gradients.extend(gradients_batch)
+
+        return np.array(gradients)
+
+
+class LossSignal(SampleSignal):
+    """
+    Signal that evaluates the loss of a model on a sample level without accessing the labels.
+    """
+
+    def __init__(self, model, device):
+        super().__init__(model, device)
+
+    def evaluate(self, dataloader):
+        self.model.eval()
+        losses = []
+
+        with torch.no_grad():
+            for data in dataloader:
+                inputs = data[0].to(self.device)
+                outputs = self.model(inputs)
+                loss = F.cross_entropy(outputs, torch.argmax(outputs, dim=1), reduction="none")
+                losses.extend(loss.cpu().numpy())
+
+        return np.array(losses)
 
 
 class DecisionBoundarySignal(SampleSignal):
