@@ -2,8 +2,8 @@
 import time
 import os
 
-datasets = ["fmow"]
-seeds = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+datasets = ["civilcomments"]
+seeds = [0]
 
 if not os.path.isdir('./job_files'):
     os.mkdir('./job_files')

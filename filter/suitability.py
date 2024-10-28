@@ -1,113 +1,154 @@
-from suitability.filter.sample_signals import (
-    CorrectnessSignal,
-    ConfidenceSignal,
-    LogitSignal,
-    DecisionBoundarySignal,
-    TrainingDynamicsSignal_Basic,
-    TrainingDynamicsSignal,
-)
-import suitability.filter.tests as ftests
-from suitability.filter.margin_tuning import tune_margin
-import pandas as pd
 import numpy as np
+import pandas as pd
+import torch
+import torch.nn.functional as F
+from sklearn.calibration import CalibratedClassifierCV
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, brier_score_loss, roc_auc_score
+from sklearn.model_selection import train_test_split
+
+import suitability.filter.tests as ftests
 
 
 class SuitabilityFilter:
     def __init__(
         self,
         model,
-        eval_data,
-        tuning_data,
-        test_sample,
+        test_data,
+        regressor_data,
         device,
-        signals,
-        target_accuracy,
     ):
         """
         model: the model to be evaluated (torch model)
-        eval_data: the data used to evaluate the model (torch dataloader)
-        tuning_data: the data used to tune the margin (torch dataloader)
-        test_sample: the data provided by the user (torch dataloader)
-        signals: the signals used to evaluate the model (string array)
+        test_data: the test data used to evaluate the model (torch dataset)
+        regressor_data: the sample used by the provider to train the regressor (torch dataset)
+        device: the device used to evaluate the model (torch device)
 
         """
         self.model = model
-        self.eval_data = eval_data
-        self.tuning_data = tuning_data
-        self.test_sample = test_sample
+        self.test_data = test_data
+        self.regressor_data = regressor_data
         self.device = device
-        self.signals = signals
-        self.target_accuracy = target_accuracy
 
-        columns = {
-            "signal": pd.Series(
-                dtype="str"
-            ),  # 'str' for the signal column (string type)
-            "eval_data": pd.Series(dtype=np.dtype("O")),  # 'O' for object (np arrays)
-            "tuning_data": pd.Series(dtype=np.dtype("O")),  # 'O' for object (np arrays)
-            "test_sample": pd.Series(dtype=np.dtype("O")),  # 'O' for object (np arrays)
-            "margin": pd.Series(dtype="float"),
-            "p_value": pd.Series(dtype="float"),
-            "test_statistic": pd.Series(dtype="float"),
-        }
+        self.regressor_features = None
+        self.regressor_correct = None
+        self.regressor = None
 
-        self.signal_df = pd.DataFrame(columns)
+        self.test_features = None
+        self.test_correct = None
 
-    def evaluate_signal(self, signal_name, signal_config):
+    def get_features(self, data):
         """
-        Compute and evaluate a single signal for the given signal configuration
+        Get the features (signals) used by the regressor
 
-        signal_name: the signal to be evaluated
-        signal_config: a dictionary containing the configuration for each signal
+        data: the data we want to calculate the features for (torch dataset)
+
+        return: the features (signals) used by the regressor (numpy array), an binary array representing prediction correctness (numpy array)
         """
-        if signal_name == "correctness":
-            signal = CorrectnessSignal(self.model, self.device)
-        elif signal_name == "confidence":
-            signal = ConfidenceSignal(self.model, self.device)
-        elif signal_name == "logit":
-            signal = LogitSignal(self.model, self.device)
-        elif signal_name == "decision_boundary":
-            signal = DecisionBoundarySignal(self.model, self.device)
-        elif signal_name == "training_dynamics_basic":
-            signal = TrainingDynamicsSignal_Basic(self.model, self.device)
-        elif signal_name == "training_dynamics":
-            signal = TrainingDynamicsSignal(self.model, self.device)
+        self.model.eval()
+        all_features = []
+        all_correct = []
+
+        with torch.no_grad():
+            for batch in data:
+                inputs, labels = batch[0].to(self.device), batch[1].to(self.device)
+                outputs = self.model(inputs)
+
+                # CORRECTNESS
+                predictions = torch.argmax(outputs, dim=1)
+                correct = (predictions == labels).cpu().numpy()
+                all_correct.extend(correct)
+
+                # SIGNALS
+                # Confidence signals
+                softmax_outputs = F.softmax(outputs, dim=1)
+                conf_mean = softmax_outputs.mean(dim=1).cpu().numpy()
+                conf_max = softmax_outputs.max(dim=1)[0].cpu().numpy()
+                conf_std = softmax_outputs.std(dim=1).cpu().numpy()
+
+                # Logits signals
+                logit_mean = outputs.mean(dim=1).cpu().numpy()
+                logit_max = outputs.max(dim=1)[0].cpu().numpy()
+                logit_std = outputs.std(dim=1).cpu().numpy()
+
+                # Loss signals
+                loss = (
+                    F.cross_entropy(
+                        outputs, torch.argmax(outputs, dim=1), reduction="none"
+                    )
+                    .cpu()
+                    .numpy()
+                )
+
+                # Combining all signals
+                features = np.column_stack(
+                    [
+                        conf_mean,
+                        conf_max,
+                        conf_std,
+                        logit_mean,
+                        logit_max,
+                        logit_std,
+                        loss,
+                    ]
+                )
+
+                all_features.append(features)
+
+            features = np.vstack(all_features)
+            correct = np.array(all_correct, dtype=bool)
+
+        return features, correct
+
+    def train_regressor(self, calibrated=True):
+        """
+        Train the regressor using the regressor data
+
+        calibrated: whether the regressor should be calibrated or not (bool)
+        """
+        if self.regressor_features is None or self.regressor_correct is None:
+            features, correct = self.get_features(self.regressor_data)
+            self.regressor_features, self.regressor_correct = features, correct
         else:
-            raise ValueError(f"Invalid signal name {signal_name}")
+            features, correct = self.regressor_features, self.regressor_correct
 
-        cs = CorrectnessSignal(self.model, self.device)
-        tuning_data_correctness = cs.evaluate(self.tuning_data)
+        regression_model = LogisticRegression()
 
-        eval_data_signal = signal.evaluate(self.eval_data, **signal_config)
-        tuning_data_signal = signal.evaluate(self.tuning_data, **signal_config)
-        test_sample_signal = signal.evaluate(self.test_sample, **signal_config)
+        if not calibrated:
+            self.regressor = regression_model.fit(features, correct)
+        else:
+            self.regressor = CalibratedClassifierCV(
+                estimator=regression_model, method="sigmoid", cv=5
+            ).fit(features, correct)
 
-        margin = tune_margin(
-            correctness = tuning_data_correctness,
-            signals = tuning_data_signal,
-            bm_signals = eval_data_signal,
-            test_fn = ftests.non_inferiority_ttest,
-            x = self.target_accuracy,
-            **signal_config,
-        )
+    def suitability_test(self, user_data=None, user_features=None, margin=0):
+        """
+        Perform the suitability test
 
-        stat_test = ftests.non_inferiority_ttest(
-            sample1 = eval_data_signal,
-            sample2 = test_sample_signal,
-            margin = margin,
-            **signal_config,
-        )
+        user_data: the data provided by the user to evaluate suitability (torch dataset)
+        user_features: the features (signals) used by the regressor for the user data (numpy array)
+        margin: the margin used for the non-inferiority test (float)
+        """
+        if self.regressor is None:
+            raise ValueError("Regressor not trained")
 
-        df_row = {
-            "signal": signal_name,
-            "eval_data": eval_data_signal,
-            "tuning_data": tuning_data_signal,
-            "test_sample": test_sample_signal,
-            "margin": margin,
-            "p_value": stat_test["p_value"],
-            "test_statistic": stat_test["t_statistic"],
-        }
+        if self.test_features is None or self.test_correct is None:
+            test_features, test_correct = self.get_features(self.test_data)
+            self.test_features, self.test_correct = test_features, test_correct
+        else:
+            test_features, test_correct = self.test_features, self.test_correct
 
-        self.signal_df = pd.concat([self.signal_df, pd.DataFrame(df_row)], ignore_index=True)
+        if user_data is not None:
+            assert user_features is None, "Either user_data or user_features should be None"
+            user_features, _ = self.get_features(self.user_data)
+        elif user_features is not None:
+            assert user_data is None, "Either user_data or user_features should be None"
+        else:
+            raise ValueError("Either user_data or user_features should be provided")
 
-    
+        test_predictions = self.regressor.predict_proba(test_features)[:, 1]
+        user_predictions = self.regressor.predict_proba(user_features)[:, 1]
+
+        test = ftests.non_inferiority_ttest(test_predictions, user_predictions, margin=margin)
+
+        return test
