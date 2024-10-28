@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import shap
 import torch
 import torch.nn.functional as F
 from sklearn.calibration import CalibratedClassifierCV
@@ -65,38 +66,102 @@ class SuitabilityFilter:
                 conf_mean = softmax_outputs.mean(dim=1).cpu().numpy()
                 conf_max = softmax_outputs.max(dim=1)[0].cpu().numpy()
                 conf_std = softmax_outputs.std(dim=1).cpu().numpy()
-
-                # Logits signals
-                logit_mean = outputs.mean(dim=1).cpu().numpy()
-                logit_max = outputs.max(dim=1)[0].cpu().numpy()
-                logit_std = outputs.std(dim=1).cpu().numpy()
-
-                # Loss signals
-                loss = (
-                    F.cross_entropy(
-                        outputs, torch.argmax(outputs, dim=1), reduction="none"
+                conf_entropy = (
+                    (
+                        -torch.sum(
+                            softmax_outputs * torch.log(softmax_outputs + 1e-10), dim=1
+                        )
                     )
                     .cpu()
                     .numpy()
                 )
 
-                # Combining all signals
+                # Logits signals
+                logit_mean = outputs.mean(dim=1).cpu().numpy()
+                logit_max = outputs.max(dim=1)[0].cpu().numpy()
+                logit_std = outputs.std(dim=1).cpu().numpy()
+                logit_diff_top2 = (
+                    (
+                        torch.topk(outputs, 2, dim=1).values[:, 0]
+                        - torch.topk(outputs, 2, dim=1).values[:, 1]
+                    )
+                    .cpu()
+                    .numpy()
+                )
+
+                # Loss signals
+                loss = (
+                    F.cross_entropy(outputs, predictions, reduction="none")
+                    .cpu()
+                    .numpy()
+                )
+
+                # Margin loss as difference in cross-entropy loss
+                top_two_classes = torch.topk(
+                    outputs, 2, dim=1
+                ).indices  # Get indices of top 2 classes
+                pred_class_probs = F.softmax(outputs, dim=1)[
+                    range(len(labels)), top_two_classes[:, 0]
+                ]
+                next_best_class_probs = F.softmax(outputs, dim=1)[
+                    range(len(labels)), top_two_classes[:, 1]
+                ]
+
+                pred_class_loss = -torch.log(pred_class_probs + 1e-10).cpu().numpy()
+                next_best_class_loss = (
+                    -torch.log(next_best_class_probs + 1e-10).cpu().numpy()
+                )
+                margin_loss = (
+                    pred_class_loss - next_best_class_loss
+                )  # Difference in loss between top 2 classes
+
+                # Gradient Norm (L2 norm of the gradient wrt input)
+                # inputs.requires_grad = True
+                # loss_grad = F.cross_entropy(outputs, predictions)
+                # self.model.zero_grad()
+                # loss_grad.backward()
+                # grad_norm = inputs.grad.norm(2, dim=(1, 2, 3)).cpu().numpy()
+
+                # Class Probability Ratios
+                top_two_probs = (
+                    torch.topk(softmax_outputs, 2, dim=1).values.cpu().numpy()
+                )
+                class_prob_ratio = top_two_probs[:, 0] / (top_two_probs[:, 1] + 1e-10)
+
+                # Top-k Class Probabilities
+                top_k = int(
+                    softmax_outputs.size(1) * 0.1
+                )  # Calculate top 10% class probabilities
+                top_k_probs_sum = (
+                    torch.topk(softmax_outputs, top_k, dim=1)
+                    .values.sum(dim=1)
+                    .cpu()
+                    .numpy()
+                )
+
+                # Combining all signals into a feature vector
                 features = np.column_stack(
                     [
                         conf_mean,
                         conf_max,
                         conf_std,
+                        conf_entropy,
                         logit_mean,
                         logit_max,
                         logit_std,
+                        logit_diff_top2,
                         loss,
+                        margin_loss,
+                        # grad_norm,
+                        class_prob_ratio,
+                        top_k_probs_sum,
                     ]
                 )
 
                 all_features.append(features)
 
-            features = np.vstack(all_features)
-            correct = np.array(all_correct, dtype=bool)
+        features = np.vstack(all_features)
+        correct = np.array(all_correct, dtype=bool)
 
         return features, correct
 
@@ -139,7 +204,9 @@ class SuitabilityFilter:
             test_features, test_correct = self.test_features, self.test_correct
 
         if user_data is not None:
-            assert user_features is None, "Either user_data or user_features should be None"
+            assert (
+                user_features is None
+            ), "Either user_data or user_features should be None"
             user_features, _ = self.get_features(self.user_data)
         elif user_features is not None:
             assert user_data is None, "Either user_data or user_features should be None"
@@ -149,6 +216,44 @@ class SuitabilityFilter:
         test_predictions = self.regressor.predict_proba(test_features)[:, 1]
         user_predictions = self.regressor.predict_proba(user_features)[:, 1]
 
-        test = ftests.non_inferiority_ttest(test_predictions, user_predictions, margin=margin)
+        test = ftests.non_inferiority_ttest(
+            test_predictions, user_predictions, margin=margin
+        )
 
         return test
+
+    def calculate_shap_values(self, sample_data=None, K=100):
+        """
+        Calculate SHAP values for the trained regressor.
+
+        sample_data: Optional. A subset of data for SHAP value calculation
+                    (to save computation time).
+        K: Optional. The number of samples to use for summarizing the background data
+        if the dataset is large (default is 100).
+
+        return: SHAP values as a numpy array.
+        """
+        if self.regressor is None:
+            raise ValueError(
+                "The regressor is not trained. Train it using `train_regressor` before calling this function."
+            )
+
+        # Use either provided sample data or all features
+        data_to_explain = (
+            sample_data if sample_data is not None else self.regressor_features
+        )
+
+        # Create a background dataset to use for SHAP value calculations
+        if len(self.regressor_features) > 1000:  # Arbitrary threshold for large datasets
+            # Summarize the background data
+            summarized_background = shap.kmeans(self.regressor_features, K)
+        else:
+            summarized_background = self.regressor_features
+
+        # Initialize SHAP KernelExplainer with summarized background data
+        explainer = shap.KernelExplainer(self.regressor.predict_proba, summarized_background)
+
+        # Calculate SHAP values for each feature
+        shap_values = explainer.shap_values(data_to_explain)
+
+        return shap_values
