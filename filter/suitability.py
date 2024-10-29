@@ -1,12 +1,9 @@
 import numpy as np
-import pandas as pd
 import shap
 import torch
 import torch.nn.functional as F
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score, brier_score_loss, roc_auc_score
-from sklearn.model_selection import train_test_split
 
 import suitability.filter.tests as ftests
 
@@ -174,18 +171,23 @@ class SuitabilityFilter:
         return: a binary array representing prediction correctness (numpy array)
         """
         self.model.eval()
-        all_correct = []
+        # all_correct = []
+        all_confidence = []
 
         with torch.no_grad():
             for batch in data:
                 inputs, labels = batch[0].to(self.device), batch[1].to(self.device)
                 outputs = self.model(inputs)
 
-                predictions = torch.argmax(outputs, dim=1)
-                correct = (predictions == labels).cpu().numpy()
-                all_correct.extend(correct)
+                # predictions = torch.argmax(outputs, dim=1)
+                # correct = (predictions == labels).cpu().numpy()
+                # all_correct.extend(correct)
 
-        return np.array(all_correct, dtype=bool)
+                softmax_probs = F.softmax(outputs, dim=1)
+                correct_confidence = softmax_probs[torch.arange(len(labels)), labels].cpu().numpy()
+                all_confidence.extend(correct_confidence)
+
+        return np.array(all_confidence) # np.array(all_correct, dtype=bool)
 
     def train_regressor(self, calibrated=True):
         """
@@ -276,28 +278,21 @@ class SuitabilityFilter:
         test_power: whether to calculate the test power (bool)
         get_sample_size: whether to calculate the sample size required for the test (bool)
         """
-        if self.regressor is None:
-            raise ValueError("Regressor not trained")
 
-        if self.test_correct is None:
-            test_correct = self.get_correct(self.test_data)
-            self.test_correct = test_correct
-        else:
-            test_correct = self.test_correct
+        test_conf = self.get_correct(self.test_data)
+        user_conf = self.get_correct(user_data)
 
-        user_correct = self.get_correct(user_data)
-
-        test = ftests.non_inferiority_ttest(test_correct, user_correct, margin=margin)
+        test = ftests.non_inferiority_ttest(test_conf, user_conf, margin=margin)
 
         if test_power:
             power = ftests.power_non_inferiority_ttest(
-                test_correct, user_correct, margin=margin
+                test_conf, user_conf, margin=margin
             )
             test["power"] = power
 
         if get_sample_size:
             sample_size = ftests.sample_size_non_inferiority_ttest(
-                test_correct, user_correct, power=0.8, margin=margin
+                test_conf, user_conf, power=0.8, margin=margin
             )
             test["sample_size_0.8_power"] = sample_size
 
