@@ -244,16 +244,20 @@ class SuitabilityFilter:
         )
 
         # Create a background dataset to use for SHAP value calculations
-        if len(self.regressor_features) > 1000:  # Arbitrary threshold for large datasets
+        if (
+            len(self.regressor_features) > 1000
+        ):  # Arbitrary threshold for large datasets
             # Summarize the background data
             summarized_background = shap.kmeans(self.regressor_features, K)
         else:
             summarized_background = self.regressor_features
 
         # Initialize SHAP KernelExplainer with summarized background data
-        explainer = shap.KernelExplainer(self.regressor.predict_proba, summarized_background)
+        explainer = shap.KernelExplainer(
+            self.regressor.predict_proba, summarized_background
+        )
 
         # Calculate SHAP values for each feature
         shap_values = explainer.shap_values(data_to_explain)
 
-        return shap_values
+        return shap_values, explainer
