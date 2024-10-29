@@ -165,6 +165,28 @@ class SuitabilityFilter:
 
         return features, correct
 
+    def get_correct(self, data):
+        """
+        Get the correctness of the model predictions
+
+        data: the data we want to calculate the correctness for (torch dataset)
+
+        return: a binary array representing prediction correctness (numpy array)
+        """
+        self.model.eval()
+        all_correct = []
+
+        with torch.no_grad():
+            for batch in data:
+                inputs, labels = batch[0].to(self.device), batch[1].to(self.device)
+                outputs = self.model(inputs)
+
+                predictions = torch.argmax(outputs, dim=1)
+                correct = (predictions == labels).cpu().numpy()
+                all_correct.extend(correct)
+
+        return np.array(all_correct, dtype=bool)
+
     def train_regressor(self, calibrated=True):
         """
         Train the regressor using the regressor data
@@ -186,13 +208,22 @@ class SuitabilityFilter:
                 estimator=regression_model, method="sigmoid", cv=5
             ).fit(features, correct)
 
-    def suitability_test(self, user_data=None, user_features=None, margin=0):
+    def suitability_test(
+        self,
+        user_data=None,
+        user_features=None,
+        margin=0,
+        test_power=False,
+        get_sample_size=False,
+    ):
         """
         Perform the suitability test
 
         user_data: the data provided by the user to evaluate suitability (torch dataset)
         user_features: the features (signals) used by the regressor for the user data (numpy array)
         margin: the margin used for the non-inferiority test (float)
+        test_power: whether to calculate the test power (bool)
+        get_sample_size: whether to calculate the sample size required for the test (bool)
         """
         if self.regressor is None:
             raise ValueError("Regressor not trained")
@@ -219,6 +250,56 @@ class SuitabilityFilter:
         test = ftests.non_inferiority_ttest(
             test_predictions, user_predictions, margin=margin
         )
+
+        if test_power:
+            power = ftests.power_non_inferiority_ttest(
+                test_predictions, user_predictions, margin=margin
+            )
+            test["power"] = power
+
+        if get_sample_size:
+            sample_size = ftests.sample_size_non_inferiority_ttest(
+                test_predictions, user_predictions, power=0.8, margin=margin
+            )
+            test["sample_size_0.8_power"] = sample_size
+
+        return test
+
+    def suitability_test_with_labels(
+        self, user_data=None, margin=0, test_power=False, get_sample_size=False
+    ):
+        """
+        Perform the suitability test
+
+        user_data: the data provided by the user to evaluate suitability (torch dataset)
+        margin: the margin used for the non-inferiority test (float)
+        test_power: whether to calculate the test power (bool)
+        get_sample_size: whether to calculate the sample size required for the test (bool)
+        """
+        if self.regressor is None:
+            raise ValueError("Regressor not trained")
+
+        if self.test_correct is None:
+            test_correct = self.get_correct(self.test_data)
+            self.test_correct = test_correct
+        else:
+            test_correct = self.test_correct
+
+        user_correct = self.get_correct(user_data)
+
+        test = ftests.non_inferiority_ttest(test_correct, user_correct, margin=margin)
+
+        if test_power:
+            power = ftests.power_non_inferiority_ttest(
+                test_correct, user_correct, margin=margin
+            )
+            test["power"] = power
+
+        if get_sample_size:
+            sample_size = ftests.sample_size_non_inferiority_ttest(
+                test_correct, user_correct, power=0.8, margin=margin
+            )
+            test["sample_size_0.8_power"] = sample_size
 
         return test
 
