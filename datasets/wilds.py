@@ -22,6 +22,17 @@ class ResConfig:
             raise ValueError(f"Dataset {dataset_name} not supported")
 
 
+class BertConfig:
+    def __init__(self, dataset_name):
+        if dataset_name == "civilcomments":
+            self.model = "distilbert-base-uncased"
+            self.max_token_length = 300
+        else:
+            raise ValueError(f"Dataset {dataset_name} not supported")
+        self.pretrained_model_path = None
+        self.model_kwargs = {}
+
+
 class WILDSDataset(Dataset):
     def __init__(self, dataset_name, split, root_dir, pre_filter={}):
         """
@@ -33,13 +44,19 @@ class WILDSDataset(Dataset):
         """
         dataset = get_dataset(dataset=dataset_name, download=False, root_dir=root_dir)
 
-        config = ResConfig(dataset_name)
-        transform = initialize_transform(
-            transform_name="image_base",
-            config=config,
-            dataset=dataset,
-            is_training=False,
-        )
+        if dataset_name == "civilcomments":
+            config = BertConfig(dataset_name)
+            transform = initialize_transform(
+                transform_name="bert", config=config, dataset=dataset, is_training=False
+            )
+        elif dataset_name in ["iwildcam", "fmow"]:
+            config = ResConfig(dataset_name)
+            transform = initialize_transform(
+                transform_name="image_base",
+                config=config,
+                dataset=dataset,
+                is_training=False,
+            )
 
         self.dataset = dataset.get_subset(split, transform=transform)
         self.filtered_indices = list(range(len(self.dataset)))
@@ -69,11 +86,35 @@ class WILDSDataset(Dataset):
                     val_ind = value - 2002
                 else:
                     raise ValueError(f"Filter property {key} not supported")
-            self.filtered_indices = [
-                i
-                for i in self.filtered_indices
-                if self.dataset[i][2][key_ind] == val_ind
-            ]
+                self.filtered_indices = [
+                    i
+                    for i in self.filtered_indices
+                    if self.dataset[i][2][key_ind] == val_ind
+                ]
+
+            if dataset_name == "civilcomments":
+                if key == "sensitive":
+                    if value == "male":
+                        val_ind = 0
+                    elif value == "female":
+                        val_ind = 1
+                    elif value == "LGBTQ":
+                        val_ind = 2
+                    elif value == "christian":
+                        val_ind = 3
+                    elif value == "muslim":
+                        val_ind = 4
+                    elif value == "other_religions":
+                        val_ind = 5
+                    elif value == "black":
+                        val_ind = 6
+                    elif value == "white":
+                        val_ind = 7
+                else:
+                    raise ValueError(f"Filter property {key} not supported")
+                self.filtered_indices = [
+                    i for i in self.filtered_indices if self.dataset[i][2][val_ind] == 1
+                ]
 
     def __len__(self):
         return len(self.filtered_indices)
@@ -82,10 +123,13 @@ class WILDSDataset(Dataset):
         return self.dataset[self.filtered_indices[idx]]
 
 
-def get_wilds_dataset(dataset_name, root_dir, split, batch_size, shuffle, num_workers, pre_filter={}):
+def get_wilds_dataset(
+    dataset_name, root_dir, split, batch_size, shuffle, num_workers, pre_filter={}
+):
     assert dataset_name in [
         "iwildcam",
         "fmow",
+        "civilcomments",
     ], f"Dataset {dataset_name} not supported"
     assert split in [
         "val",
