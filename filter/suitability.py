@@ -15,18 +15,21 @@ class SuitabilityFilter:
         test_data,
         regressor_data,
         device,
+        use_labels = False
     ):
         """
         model: the model to be evaluated (torch model)
         test_data: the test data used to evaluate the model (torch dataset)
         regressor_data: the sample used by the provider to train the regressor (torch dataset)
         device: the device used to evaluate the model (torch device)
+        use_labels: whether to use the GT labels for the regressor (bool)
 
         """
         self.model = model
         self.test_data = test_data
         self.regressor_data = regressor_data
         self.device = device
+        self.use_labels = use_labels
 
         self.regressor_features = None
         self.regressor_correct = None
@@ -136,24 +139,50 @@ class SuitabilityFilter:
                     .numpy()
                 )
 
-                # Combining all signals into a feature vector
-                features = np.column_stack(
-                    [
-                        conf_mean,
-                        conf_max,
-                        conf_std,
-                        conf_entropy,
-                        logit_mean,
-                        logit_max,
-                        logit_std,
-                        logit_diff_top2,
-                        loss,
-                        margin_loss,
-                        # grad_norm,
-                        class_prob_ratio,
-                        top_k_probs_sum,
-                    ]
-                )
+                if self.use_labels:
+                    conf_corr = softmax_outputs[torch.arange(len(labels)), labels].cpu().numpy()
+                    logit_corr = outputs[torch.arange(len(labels)), labels].cpu().numpy()
+                    loss_corr = F.cross_entropy(outputs, labels, reduction="none").cpu().numpy()
+
+                    features = np.column_stack(
+                        [
+                            conf_mean,
+                            conf_max,
+                            conf_std,
+                            conf_entropy,
+                            logit_mean,
+                            logit_max,
+                            logit_std,
+                            logit_diff_top2,
+                            loss,
+                            margin_loss,
+                            # grad_norm,
+                            class_prob_ratio,
+                            top_k_probs_sum,
+                            conf_corr,
+                            logit_corr,
+                            loss_corr,
+                        ]
+                    )
+                else:
+                    # Combining all signals into a feature vector
+                    features = np.column_stack(
+                        [
+                            conf_mean,
+                            conf_max,
+                            conf_std,
+                            conf_entropy,
+                            logit_mean,
+                            logit_max,
+                            logit_std,
+                            logit_diff_top2,
+                            loss,
+                            margin_loss,
+                            # grad_norm,
+                            class_prob_ratio,
+                            top_k_probs_sum,
+                        ]
+                    )
 
                 all_features.append(features)
 
@@ -171,23 +200,18 @@ class SuitabilityFilter:
         return: a binary array representing prediction correctness (numpy array)
         """
         self.model.eval()
-        # all_correct = []
-        all_confidence = []
+        all_correct = []
 
         with torch.no_grad():
             for batch in data:
                 inputs, labels = batch[0].to(self.device), batch[1].to(self.device)
                 outputs = self.model(inputs)
 
-                # predictions = torch.argmax(outputs, dim=1)
-                # correct = (predictions == labels).cpu().numpy()
-                # all_correct.extend(correct)
+                predictions = torch.argmax(outputs, dim=1)
+                correct = (predictions == labels).cpu().numpy()
+                all_correct.extend(correct)
 
-                softmax_probs = F.softmax(outputs, dim=1)
-                correct_confidence = softmax_probs[torch.arange(len(labels)), labels].cpu().numpy()
-                all_confidence.extend(correct_confidence)
-
-        return np.array(all_confidence) # np.array(all_correct, dtype=bool)
+        return np.array(all_correct, dtype=bool)
 
     def train_regressor(self, calibrated=True):
         """
@@ -267,7 +291,7 @@ class SuitabilityFilter:
 
         return test
 
-    def suitability_test_with_labels(
+    def suitability_test_with_correctness(
         self, user_data=None, margin=0, test_power=False, get_sample_size=False
     ):
         """
