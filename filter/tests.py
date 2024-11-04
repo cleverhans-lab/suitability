@@ -68,12 +68,11 @@ def non_inferiority_ttest(
     Use when: small sample size, unequal population variances, adjusts for dof, accounts for sample size differences
     sample1: array of values for sample 1 (typically validation data provided by model provider)
     sample2: array of values for sample 2 (typically sample provided by model user)
-    margin: non-inferiority margin (threshold for difference in means), as a fraction of the mean of sample1.
+    margin: non-inferiority margin (threshold for difference in means)
     equal_var: if False, uses Welch's t-test.
     increase_good: if True, Ho: mean2 <= mean1 - threshold. Else Ho: mean2 >= mean1 + threshold.
     Returns: t_statistic, p_value, reject_null
     """
-    margin *= sample1.mean()
     if increase_good:
         sample2_diff = sample2 + margin
     else:
@@ -111,8 +110,8 @@ def equivalence_test(sample1, sample2, threshold_low, threshold_upp, equal_var=F
     Perform a corrected custom TOST with Satterthwaite's degrees of freedom.
     sample1: array of values for sample 1 (typically validation data provided by model provider)
     sample2: array of values for sample 2 (typically sample provided by model user)
-    threshold_low: lower bound of the equivalence interval as a fraction of the mean of sample1.
-    threshold_upp: upper bound of the equivalence interval as a fraction of the mean of sample1.
+    threshold_low: lower bound of the equivalence interval.
+    threshold_upp: upper bound of the equivalence interval.
     equal_var: if False, uses Welch's t-test.
     Returns: t-statistic and p-values for the lower and upper bound tests, and the degrees of freedom.
     """
@@ -122,8 +121,8 @@ def equivalence_test(sample1, sample2, threshold_low, threshold_upp, equal_var=F
     std1, std2 = np.std(sample1, ddof=1), np.std(sample2, ddof=1)
     n1, n2 = len(sample1), len(sample2)
     mean_diff = mean1 - mean2
-    low = mean1 * threshold_low
-    upp = mean1 * threshold_upp
+    low = threshold_low
+    upp = threshold_upp
 
     # Calculate standard error of the difference
     se_diff = np.sqrt(std1**2 / n1 + std2**2 / n2)
