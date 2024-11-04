@@ -9,14 +9,7 @@ import suitability.filter.tests as ftests
 
 
 class SuitabilityFilter:
-    def __init__(
-        self,
-        model,
-        test_data,
-        regressor_data,
-        device,
-        use_labels = False
-    ):
+    def __init__(self, model, test_data, regressor_data, device, use_labels=False):
         """
         model: the model to be evaluated (torch model)
         test_data: the test data used to evaluate the model (torch dataset)
@@ -140,9 +133,15 @@ class SuitabilityFilter:
                 )
 
                 if self.use_labels:
-                    conf_corr = softmax_outputs[torch.arange(len(labels)), labels].cpu().numpy()
-                    logit_corr = outputs[torch.arange(len(labels)), labels].cpu().numpy()
-                    loss_corr = F.cross_entropy(outputs, labels, reduction="none").cpu().numpy()
+                    conf_corr = (
+                        softmax_outputs[torch.arange(len(labels)), labels].cpu().numpy()
+                    )
+                    logit_corr = (
+                        outputs[torch.arange(len(labels)), labels].cpu().numpy()
+                    )
+                    loss_corr = (
+                        F.cross_entropy(outputs, labels, reduction="none").cpu().numpy()
+                    )
 
                     features = np.column_stack(
                         [
@@ -292,11 +291,11 @@ class SuitabilityFilter:
         return test
 
     def performance_equivalence_test(
-        self, 
+        self,
         user_data_1=None,
-        user_features_1=None, 
-        user_data_2=None, 
-        user_features_2=None, 
+        user_features_1=None,
+        user_data_2=None,
+        user_features_2=None,
         margin=0,
     ):
         """
@@ -317,7 +316,9 @@ class SuitabilityFilter:
             ), "Either user_data_1 or user_features_1 should be None"
             user_features_1, _ = self.get_features(user_data_1)
         elif user_features_1 is not None:
-            assert user_data_1 is None, "Either user_data_1 or user_features_1 should be None"
+            assert (
+                user_data_1 is None
+            ), "Either user_data_1 or user_features_1 should be None"
         else:
             raise ValueError("Either user_data_1 or user_features_1 should be provided")
 
@@ -327,18 +328,23 @@ class SuitabilityFilter:
             ), "Either user_data_2 or user_features_2 should be None"
             user_features_2, _ = self.get_features(user_data_2)
         elif user_features_2 is not None:
-            assert user_data_2 is None, "Either user_data_2 or user_features_2 should be None"
+            assert (
+                user_data_2 is None
+            ), "Either user_data_2 or user_features_2 should be None"
         else:
             raise ValueError("Either user_data_2 or user_features_2 should be provided")
 
         user_predictions_1 = self.regressor.predict_proba(user_features_1)[:, 1]
         user_predictions_2 = self.regressor.predict_proba(user_features_2)[:, 1]
 
-
-        test = ftests.equivalence_test(user_predictions_1, user_predictions_2, threshold_low=margin, threshold_upp=margin)
+        test = ftests.equivalence_test(
+            user_predictions_1,
+            user_predictions_2,
+            threshold_low=margin,
+            threshold_upp=margin,
+        )
 
         return test
-
 
     def suitability_test_with_correctness(
         self, user_data=None, margin=0, test_power=False, get_sample_size=False
