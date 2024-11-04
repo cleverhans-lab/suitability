@@ -24,7 +24,7 @@ def non_inferiority_ztest(array1, array2, margin=0, increase_good=True, alpha=0.
     Use when: large sample size, approximately normal data distribution, assumes known population variances
     array1: array of values for sample 1
     array2: array of values for sample 2
-    margin: non-inferiority margin (threshold for difference in means), as a fraction of the mean of array1.
+    margin: non-inferiority margin (threshold for difference in means)
     increase_good: if True, Ho: mean2 <= mean1 - threshold. Else Ho: mean2 >= mean1 + threshold.
     alpha: significance level
     Returns: mean_diff, z_score, p_value, reject_null
@@ -46,7 +46,6 @@ def non_inferiority_ztest(array1, array2, margin=0, increase_good=True, alpha=0.
     se_diff = np.sqrt((std1**2 / len(array1)) + (std2**2 / len(array2)))
 
     # Calculate the Z-score
-    margin *= mean1
     z_score = (mean_diff - margin) / se_diff
 
     # Calculate the p-value
