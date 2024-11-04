@@ -291,6 +291,55 @@ class SuitabilityFilter:
 
         return test
 
+    def performance_equivalence_test(
+        self, 
+        user_data_1=None,
+        user_features_1=None, 
+        user_data_2=None, 
+        user_features_2=None, 
+        margin=0,
+    ):
+        """
+        Perform the performance equivalence test between two user datasets
+
+        user_data_1: the first data provided by the user to evaluate performance (torch dataset)
+        user_features_1: the features (signals) used by the regressor for the first user data (numpy array)
+        user_data_2: the second data provided by the user to evaluate performance (torch dataset)
+        user_features_2: the features (signals) used by the regressor for the second user data (numpy array)
+        margin: the margin used for the equivalence test bounds (float)
+        """
+        if self.regressor is None:
+            raise ValueError("Regressor not trained")
+
+        if user_data_1 is not None:
+            assert (
+                user_features_1 is None
+            ), "Either user_data_1 or user_features_1 should be None"
+            user_features_1, _ = self.get_features(user_data_1)
+        elif user_features_1 is not None:
+            assert user_data_1 is None, "Either user_data_1 or user_features_1 should be None"
+        else:
+            raise ValueError("Either user_data_1 or user_features_1 should be provided")
+
+        if user_data_2 is not None:
+            assert (
+                user_features_2 is None
+            ), "Either user_data_2 or user_features_2 should be None"
+            user_features_2, _ = self.get_features(user_data_2)
+        elif user_features_2 is not None:
+            assert user_data_2 is None, "Either user_data_2 or user_features_2 should be None"
+        else:
+            raise ValueError("Either user_data_2 or user_features_2 should be provided")
+
+        user_predictions_1 = self.regressor.predict_proba(user_features_1)[:, 1]
+        user_predictions_2 = self.regressor.predict_proba(user_features_2)[:, 1]
+
+
+        test = ftests.equivalence_test(user_predictions_1, user_predictions_2, threshold_low=margin, threshold_upp=margin)
+
+        return test
+
+
     def suitability_test_with_correctness(
         self, user_data=None, margin=0, test_power=False, get_sample_size=False
     ):
