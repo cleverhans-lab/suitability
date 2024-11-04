@@ -225,7 +225,7 @@ class SuitabilityFilter:
         else:
             features, correct = self.regressor_features, self.regressor_correct
 
-        regression_model = LogisticRegression()
+        regression_model = LogisticRegression(max_iter=1000)
 
         if not calibrated:
             self.regressor = regression_model.fit(features, correct)
