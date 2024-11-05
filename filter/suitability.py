@@ -340,7 +340,7 @@ class SuitabilityFilter:
         test = ftests.equivalence_test(
             user_predictions_1,
             user_predictions_2,
-            threshold_low=margin,
+            threshold_low=-margin,
             threshold_upp=margin,
         )
 

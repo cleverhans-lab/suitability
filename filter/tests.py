@@ -131,11 +131,11 @@ def equivalence_test(sample1, sample2, threshold_low, threshold_upp, equal_var=F
 
     # Lower bound test
     t_stat_low = (mean_diff - low) / se_diff
-    p_value_low = 1 - stats.t.cdf(t_stat_low, df=dof)
+    p_value_low = stats.t.cdf(t_stat_low, df=dof)
 
     # Upper bound test
     t_stat_upp = (mean_diff - upp) / se_diff
-    p_value_upp = 1 - stats.t.cdf(-t_stat_upp, df=dof)
+    p_value_upp = 1 - stats.t.cdf(t_stat_upp, df=dof)
 
     # Return the results
     return {
