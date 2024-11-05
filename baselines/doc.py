@@ -93,14 +93,24 @@ class DifferenceOfConfidence:
         )
         return regressor
 
-    def estimate_performance(self, user_data):
+    def estimate_performance(self, user_data=None, user_confidences=None):
         """
         Estimate the performance on new data based on the learned relationship.
 
-        evaluation_data: DataLoader with new data to evaluate.
+        user_data: DataLoader with new data to evaluate.
+        user_confidences: List of confidence scores for the user data.
         Returns: Estimated performance metric.
         """
-        eval_conf_all, _ = self._calculate_confidence_and_accuracy(user_data)
+        if user_data is None and user_confidences is None:
+            raise ValueError("Either user_data or user_confidences must be provided.")
+        elif user_data is not None and user_confidences is not None:
+            raise ValueError("Only one of user_data or user_confidences should be provided.")
+
+        # If user_data is provided, calculate the confidences
+        if user_data is not None:
+            eval_conf_all, _ = self._calculate_confidence_and_accuracy(user_data)
+        else:
+            eval_conf_all = user_confidences
 
         eval_conf_mean = np.mean(eval_conf_all)
 
@@ -112,12 +122,13 @@ class DifferenceOfConfidence:
         estimated_performance = self.reference_accuracy + performance_diff
         return estimated_performance
 
-    def binary_evaluation(self, user_data):
+    def binary_evaluation(self, user_data=None, user_confidences=None):
         """
         Evaluate new user data by comparing its estimated performance to the reference data's performance.
 
         user_data: DataLoader with new data to evaluate.
+        user_confidences: List of confidence scores for the user data.
         Returns: Boolean indicating if the estimated performance exceeds the reference performance.
         """
-        estimated_performance = self.estimate_performance(user_data)
+        estimated_performance = self.estimate_performance(user_data, user_confidences)
         return estimated_performance >= self.reference_accuracy
