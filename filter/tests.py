@@ -131,11 +131,11 @@ def equivalence_test(sample1, sample2, threshold_low, threshold_upp, equal_var=F
 
     # Lower bound test
     t_stat_low = (mean_diff - low) / se_diff
-    p_value_low = stats.t.cdf(t_stat_low, df=dof)
+    p_value_low = 1 - stats.t.cdf(t_stat_low, df=dof)
 
     # Upper bound test
     t_stat_upp = (mean_diff - upp) / se_diff
-    p_value_upp = 1 - stats.t.cdf(t_stat_upp, df=dof)
+    p_value_upp = stats.t.cdf(t_stat_upp, df=dof)
 
     # Return the results
     return {
@@ -318,3 +318,68 @@ def power_non_inferiority_ttest(
     )
 
     return power
+
+
+def weighted_mean(data, weights):
+    return np.sum(data * weights) / np.sum(weights)
+
+
+def weighted_variance(data, weights, weighted_mean):
+    return np.sum(weights * (data - weighted_mean) ** 2) / np.sum(weights)
+
+
+def non_inferiority_weighted_ttest(
+    sample1, weights1, sample2, weights2, margin=0, increase_good=True, alpha=0.05
+):
+    """
+    Perform a non-inferiority t-test for two weighted samples.
+
+    sample1, sample2: arrays of values for samples 1 and 2
+    weights1, weights2: weights associated with sample1 and sample2 respectively
+    margin: non-inferiority margin (threshold for difference in means)
+    increase_good: if True, Ho: mean2 <= mean1 - threshold. Else Ho: mean2 >= mean1 + threshold.
+    alpha: significance level
+
+    Returns: t_statistic, p_value, reject_null
+    """
+    # Calculate weighted means
+    mean1 = weighted_mean(sample1, weights1)
+    mean2 = weighted_mean(sample2, weights2)
+
+    # Adjust for non-inferiority margin
+    if increase_good:
+        mean2_diff = mean2 + margin
+    else:
+        mean2_diff = mean2 - margin
+
+    # Calculate weighted variances
+    var1 = weighted_variance(sample1, weights1, mean1)
+    var2 = weighted_variance(sample2, weights2, mean2)
+
+    # Calculate effective sample sizes for each sample
+    n1 = np.sum(weights1) ** 2 / np.sum(weights1**2)
+    n2 = np.sum(weights2) ** 2 / np.sum(weights2**2)
+
+    # Calculate the weighted t-statistic
+    pooled_se = np.sqrt(var1 / n1 + var2 / n2)
+    t_stat = (mean1 - mean2_diff) / pooled_se
+
+    # Degrees of freedom for Welch's t-test (since variances are likely unequal)
+    df = (var1 / n1 + var2 / n2) ** 2 / (
+        (var1**2) / (n1**2 * (n1 - 1)) + (var2**2) / (n2**2 * (n2 - 1))
+    )
+
+    # Calculate the one-sided p-value
+    p_value_two_sided = 2 * stats.t.cdf(-abs(t_stat), df)
+    is_neg = t_stat < 0
+
+    if increase_good and is_neg or not increase_good and not is_neg:
+        p_value_one_sided = p_value_two_sided / 2
+    else:
+        p_value_one_sided = 1 - (p_value_two_sided / 2)
+
+    return {
+        "t_statistic": t_stat,
+        "p_value": p_value_one_sided,
+        "reject_null": p_value_one_sided < alpha,
+    }
