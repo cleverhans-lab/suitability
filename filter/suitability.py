@@ -132,6 +132,9 @@ class SuitabilityFilter:
                     .numpy()
                 )
 
+                # Energy signals
+                energy = -torch.logsumexp(outputs, dim=1).cpu().numpy()
+
                 if self.use_labels:
                     conf_corr = (
                         softmax_outputs[torch.arange(len(labels)), labels].cpu().numpy()
@@ -161,6 +164,7 @@ class SuitabilityFilter:
                             conf_corr,
                             logit_corr,
                             loss_corr,
+                            energy,
                         ]
                     )
                 else:
@@ -180,6 +184,7 @@ class SuitabilityFilter:
                             # grad_norm,
                             class_prob_ratio,
                             top_k_probs_sum,
+                            energy,
                         ]
                     )
 
