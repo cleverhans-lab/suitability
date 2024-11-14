@@ -148,7 +148,7 @@ class SuitabilityFilter:
 
                     features = np.column_stack(
                         [
-                            conf_mean,
+                            # conf_mean,
                             conf_max,
                             conf_std,
                             conf_entropy,
@@ -171,7 +171,7 @@ class SuitabilityFilter:
                     # Combining all signals into a feature vector
                     features = np.column_stack(
                         [
-                            conf_mean,
+                            # conf_mean,
                             conf_max,
                             conf_std,
                             conf_entropy,
@@ -245,6 +245,7 @@ class SuitabilityFilter:
         margin=0,
         test_power=False,
         get_sample_size=False,
+        return_predictions=False,
     ):
         """
         Perform the suitability test
@@ -293,7 +294,77 @@ class SuitabilityFilter:
             )
             test["sample_size_0.8_power"] = sample_size
 
+        if return_predictions:
+            test["test_predictions"] = test_predictions
+            test["user_predictions"] = user_predictions
+
         return test
+
+    def suitability_test_for_individual_features(
+        self,
+        user_data=None,
+        user_features=None,
+        test_power=False,
+        get_sample_size=False,
+    ):
+        """
+        Perform the suitability test for each individual feature.
+
+        user_data: the data provided by the user to evaluate suitability (torch dataset)
+        user_features: the features (signals) used by the regressor for the user data (numpy array)
+        test_power: whether to calculate the test power (bool)
+        get_sample_size: whether to calculate the sample size required for the test (bool)
+        """
+
+        if self.test_features is None or self.test_correct is None:
+            test_features, test_correct = self.get_features(self.test_data)
+            self.test_features, self.test_correct = test_features, test_correct
+        else:
+            test_features, test_correct = self.test_features, self.test_correct
+
+        if user_data is not None:
+            assert (
+                user_features is None
+            ), "Either user_data or user_features should be None"
+            user_features, _ = self.get_features(self.user_data)
+        elif user_features is not None:
+            assert user_data is None, "Either user_data or user_features should be None"
+        else:
+            raise ValueError("Either user_data or user_features should be provided")
+
+        # Ensure user_features and test_features are in a comparable format (e.g., 2D numpy arrays)
+        if user_features.shape[1] != test_features.shape[1]:
+            raise ValueError(
+                "Mismatch in number of features between user and test data."
+            )
+
+        # Array to store test results for each feature
+        feature_tests = []
+
+        for i in range(user_features.shape[1]):
+            user_feature = user_features[:, i]
+            test_feature = test_features[:, i]
+
+            # Perform non-inferiority t-test with margin of 0 for each feature
+            test = ftests.non_inferiority_ttest(test_feature, user_feature, margin=0)
+
+            if test_power:
+                power = ftests.power_non_inferiority_ttest(
+                    test_feature, user_feature, margin=0
+                )
+                test["power"] = power
+
+            if get_sample_size:
+                sample_size = ftests.sample_size_non_inferiority_ttest(
+                    test_feature, user_feature, power=0.8, margin=0
+                )
+                test["sample_size_0.8_power"] = sample_size
+
+            # Append the test dictionary for the current feature
+            feature_tests.append(test)
+
+        # Return the array of test dictionaries, one for each feature
+        return feature_tests
 
     def performance_equivalence_test(
         self,
