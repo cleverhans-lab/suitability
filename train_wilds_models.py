@@ -2,7 +2,7 @@
 import time
 import os
 
-datasets = ["civilcomments"]
+datasets = ["rxrx1", "amazon"]
 seeds = [0]
 
 if not os.path.isdir('./job_files'):
@@ -19,9 +19,9 @@ for data in datasets:
             fh.writelines("#SBATCH --gres=gpu:1\n")
             fh.writelines("#SBATCH -c 4\n")
             fh.writelines("#SBATCH --mem=40GB\n")
-            fh.writelines("#SBATCH -w caballus\n")
+            fh.writelines("#SBATCH --exclude=nic2,nic3\n")
             fh.writelines("#SBATCH --output=./out_err_slurm/%j.out\n")
             fh.writelines("#SBATCH --error=./out_err_slurm/%j.err\n")
-            fh.writelines(f"python wilds/examples/run_expt.py --dataset {data} --seed {seed} --algorithm ERM --download --root_dir /mfsnic/u/apouget/data/ --log_dir /mfsnic/u/apouget/experiments/{data} --use_wandb --wandb_api_key_path /h/321/apouget/wandb_key.txt --wandb_kwargs project=WILDS name={data} \n")
+            fh.writelines(f"python wilds/examples/run_expt.py --dataset {data} --seed {seed} --algorithm ERM --root_dir /mfsnic/u/apouget/data/ --log_dir /mfsnic/u/apouget/experiments/{data} --use_wandb --wandb_api_key_path /h/321/apouget/wandb_key.txt --wandb_kwargs project=WILDS name={data} \n")
         os.system("sbatch %s" %job_file)
         time.sleep(0.3)
