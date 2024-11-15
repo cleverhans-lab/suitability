@@ -1,3 +1,8 @@
+import torch
+from examples.models.initializer import (
+    initialize_bert_based_model,
+    initialize_torchvision_model,
+)
 from examples.transforms import initialize_transform
 from torch.utils.data import DataLoader, Dataset
 
@@ -164,6 +169,16 @@ class WILDSDataset(Dataset):
 def get_wilds_dataset(
     dataset_name, root_dir, split, batch_size, shuffle, num_workers, pre_filter={}
 ):
+    """
+    dataset_name: the name of the dataset (string)
+    root_dir: the root directory of the dataset (string)
+    split: the split of the dataset (string)
+    batch_size: the batch size (int)
+    shuffle: whether to shuffle the data (bool)
+    num_workers: the number of workers (int)
+    pre_filter: the filter to be applied to the data (dict)
+    """
+
     assert dataset_name in [
         "iwildcam",
         "fmow",
@@ -177,6 +192,7 @@ def get_wilds_dataset(
         "id_val",
         "id_test",
     ], "Split must be (id_)val or (id_)test, this should be used for evaluation only"
+    root_dir = f"{root_dir}data/"
     dataset = WILDSDataset(dataset_name, split, root_dir, pre_filter=pre_filter)
     dataloader = DataLoader(
         dataset,
@@ -185,3 +201,70 @@ def get_wilds_dataset(
         num_workers=num_workers,
     )
     return dataloader
+
+
+def remove_prefix_from_state_dict(state_dict, prefix="model."):
+    """
+    Remove the prefix from the keys in state_dict if it exists.
+    """
+    new_state_dict = {}
+    for k, v in state_dict.items():
+        if k.startswith(prefix):
+            new_state_dict[k[len(prefix) :]] = v
+        else:
+            new_state_dict[k] = v
+    return new_state_dict
+
+
+def get_wilds_model(dataset_name, root_dir, algorithm, seed=0, model_type="last"):
+    """
+    dataset_name: the name of the dataset (string)
+    root_dir: the root directory of the dataset (string)
+    algorithm: the algorithm used to train the model: ERM, IRM, groupDRO (string)
+    seed: the seed used to train the model (int)
+    model_type: the model to be loaded: last or best (string)
+    """
+
+    if dataset_name == "iwildcam":
+        model = initialize_torchvision_model("resnet50", d_out=182, pretrained=True)
+    elif dataset_name == "fmow":
+        model = initialize_torchvision_model("densenet121", d_out=62, pretrained=True)
+    elif dataset_name == "civilcomments":
+        config = BertConfig(dataset_name)
+        model = initialize_bert_based_model(config, d_out=2)
+    elif dataset_name == "amazon":
+        config = BertConfig(dataset_name)
+        model = initialize_bert_based_model(config, d_out=5)
+    elif dataset_name == "rxrx1":
+        model = initialize_torchvision_model("resnet50", d_out=1139, pretrained=True)
+    else:
+        raise ValueError(f"Unknown dataset {dataset_name}")
+
+    root_dir = f"{root_dir}experiments"
+
+    try:
+        if algorithm == "ERM":
+            state_dict = remove_prefix_from_state_dict(
+                torch.load(
+                    f"{root_dir}/{dataset_name}/{dataset_name}_seed:{seed}_epoch:{model_type}_model.pth"
+                )["algorithm"]
+            )
+        elif algorithm == "IRM":
+            state_dict = remove_prefix_from_state_dict(
+                torch.load(
+                    f"{root_dir}/IRM/{dataset_name}/{dataset_name}_seed:{seed}_epoch:{model_type}_model.pth"
+                )["algorithm"]
+            )
+        elif algorithm == "groupDRO":
+            state_dict = remove_prefix_from_state_dict(
+                torch.load(
+                    f"{root_dir}/groupDRO/{dataset_name}/{dataset_name}_seed:{seed}_epoch:{model_type}_model.pth"
+                )["algorithm"]
+            )
+    except:
+        raise ValueError(
+            f"Model not found for dataset {dataset_name}, algorithm {algorithm}, seed {seed}, model type {model_type}"
+        )
+
+    model.load_state_dict(state_dict)
+    return model
