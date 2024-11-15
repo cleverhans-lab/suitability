@@ -18,6 +18,8 @@ class ResConfig:
             return (448, 448)
         elif dataset_name == "fmow":
             return (224, 224)
+        elif dataset_name == "rxrx1":
+            return (256, 256)
         else:
             raise ValueError(f"Dataset {dataset_name} not supported")
 
@@ -27,6 +29,9 @@ class BertConfig:
         if dataset_name == "civilcomments":
             self.model = "distilbert-base-uncased"
             self.max_token_length = 300
+        elif dataset_name == "amazon":
+            self.model = "distilbert-base-uncased"
+            self.max_token_length = 512
         else:
             raise ValueError(f"Dataset {dataset_name} not supported")
         self.pretrained_model_path = None
@@ -44,7 +49,7 @@ class WILDSDataset(Dataset):
         """
         dataset = get_dataset(dataset=dataset_name, download=False, root_dir=root_dir)
 
-        if dataset_name == "civilcomments":
+        if dataset_name in ["civilcomments", "amazon"]:
             config = BertConfig(dataset_name)
             transform = initialize_transform(
                 transform_name="bert", config=config, dataset=dataset, is_training=False
@@ -53,6 +58,14 @@ class WILDSDataset(Dataset):
             config = ResConfig(dataset_name)
             transform = initialize_transform(
                 transform_name="image_base",
+                config=config,
+                dataset=dataset,
+                is_training=False,
+            )
+        elif dataset_name == "rxrx1":
+            config = ResConfig(dataset_name)
+            transform = initialize_transform(
+                transform_name="rxrx1",
                 config=config,
                 dataset=dataset,
                 is_training=False,
@@ -116,6 +129,31 @@ class WILDSDataset(Dataset):
                     i for i in self.filtered_indices if self.dataset[i][2][val_ind] == 1
                 ]
 
+            if dataset_name == "rxrx1":
+                if key == "cell_type":
+                    key_ind = 0
+                    if value == "HEPG2":
+                        val_ind = 0
+                    elif value == "HUVEC":
+                        val_ind = 1
+                    elif value == "RPE":
+                        val_ind = 2
+                    elif value == "U2OS":
+                        val_ind = 3
+                    else:
+                        raise ValueError(f"Cell type {value} not supported")
+                else:
+                    raise ValueError(f"Filter property {key} not supported")
+
+                self.filtered_indices = [
+                    i
+                    for i in self.filtered_indices
+                    if self.dataset[i][2][key_ind] == val_ind
+                ]
+
+            else:
+                raise ValueError(f"Filtering not supported for dataset {dataset_name}")
+
     def __len__(self):
         return len(self.filtered_indices)
 
@@ -130,11 +168,15 @@ def get_wilds_dataset(
         "iwildcam",
         "fmow",
         "civilcomments",
+        "rxrx1",
+        "amazon",
     ], f"Dataset {dataset_name} not supported"
     assert split in [
         "val",
         "test",
-    ], "Split must be val or test, this should be used for evaluation only"
+        "id_val",
+        "id_test",
+    ], "Split must be (id_)val or (id_)test, this should be used for evaluation only"
     dataset = WILDSDataset(dataset_name, split, root_dir, pre_filter=pre_filter)
     dataloader = DataLoader(
         dataset,
