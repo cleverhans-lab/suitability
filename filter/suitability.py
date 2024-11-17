@@ -6,16 +6,20 @@ from sklearn.calibration import CalibratedClassifierCV
 from sklearn.linear_model import LogisticRegression
 
 import suitability.filter.tests as ftests
+from sklearn.preprocessing import StandardScaler
 
 
 class SuitabilityFilter:
-    def __init__(self, model, test_data, regressor_data, device, use_labels=False):
+    def __init__(
+        self, model, test_data, regressor_data, device, use_labels=False, normalize=True
+    ):
         """
         model: the model to be evaluated (torch model)
         test_data: the test data used to evaluate the model (torch dataset)
         regressor_data: the sample used by the provider to train the regressor (torch dataset)
         device: the device used to evaluate the model (torch device)
         use_labels: whether to use the GT labels for the regressor (bool)
+        normalize: whether to normalize the features (bool)
 
         """
         self.model = model
@@ -27,6 +31,10 @@ class SuitabilityFilter:
         self.regressor_features = None
         self.regressor_correct = None
         self.regressor = None
+        self.scaler = StandardScaler()
+        self.normalize = normalize
+        self.regressor_subset = {}
+    
 
         self.test_features = None
         self.test_correct = None
@@ -229,12 +237,47 @@ class SuitabilityFilter:
         else:
             features, correct = self.regressor_features, self.regressor_correct
 
+        if self.normalize:
+            features = self.scaler.fit_transform(features)
+
         regression_model = LogisticRegression(max_iter=1000)
 
         if not calibrated:
             self.regressor = regression_model.fit(features, correct)
         else:
             self.regressor = CalibratedClassifierCV(
+                estimator=regression_model, method="sigmoid", cv=5
+            ).fit(features, correct)
+
+    def train_regressor_for_feature_subset(self, feature_subset, calibrated=True):
+        """
+        Train the regressor using the regressor data for a selected subset of signals.
+
+        feature_subset: the subset of features to be used for the regressor (list of integers)
+        calibrated: whether the regressor should be calibrated or not (bool)
+        """
+        if self.regressor_subset.get(tuple(feature_subset), None) is not None:
+            return
+
+        if self.regressor_features is None or self.regressor_correct is None:
+            features, correct = self.get_features(self.regressor_data)
+            self.regressor_features, self.regressor_correct = features, correct
+        else:
+            features, correct = self.regressor_features, self.regressor_correct
+
+        if self.normalize:
+            self.scaler.fit_transform(features)
+
+        features = features[:, feature_subset]
+
+        regression_model = LogisticRegression(max_iter=1000)
+
+        if not calibrated:
+            self.regressor_subset[tuple(feature_subset)] = regression_model.fit(
+                features, correct
+            )
+        else:
+            self.regressor_subset[tuple(feature_subset)] = CalibratedClassifierCV(
                 estimator=regression_model, method="sigmoid", cv=5
             ).fit(features, correct)
 
@@ -274,6 +317,10 @@ class SuitabilityFilter:
             assert user_data is None, "Either user_data or user_features should be None"
         else:
             raise ValueError("Either user_data or user_features should be provided")
+
+        if self.normalize:
+            test_features = self.scaler.transform(test_features)
+            user_features = self.scaler.transform(user_features)
 
         test_predictions = self.regressor.predict_proba(test_features)[:, 1]
         user_predictions = self.regressor.predict_proba(user_features)[:, 1]
@@ -365,6 +412,85 @@ class SuitabilityFilter:
 
         # Return the array of test dictionaries, one for each feature
         return feature_tests
+
+    def suitability_test_for_feature_subset(
+        self,
+        feature_subset,
+        user_data=None,
+        user_features=None,
+        margin=0,
+        test_power=False,
+        get_sample_size=False,
+        return_predictions=False,
+        calibrated=True,
+    ):
+        """
+        Perform the suitability test for a selected subset of signals.
+
+        feature_subset: the subset of features to be used for the test (list of integers)
+        user_data: the data provided by the user to evaluate suitability (torch dataset)
+        user_features: the features (signals) used by the regressor for the user data (numpy array)
+        margin: the margin used for the non-inferiority test (float)
+        test_power: whether to calculate the test power (bool)
+        get_sample_size: whether to calculate the sample size required for the test (bool)
+        calibrated: whether the regressor should be calibrated or not (bool)
+        """
+        if self.regressor_subset.get(tuple(feature_subset), None) is None:
+            self.train_regressor_for_feature_subset(
+                feature_subset=feature_subset, calibrated=calibrated
+            )
+
+        if self.test_features is None or self.test_correct is None:
+            test_features, test_correct = self.get_features(self.test_data)
+            self.test_features, self.test_correct = test_features, test_correct
+        else:
+            test_features, test_correct = self.test_features, self.test_correct
+
+        if user_data is not None:
+            assert (
+                user_features is None
+            ), "Either user_data or user_features should be None"
+            user_features, _ = self.get_features(self.user_data)
+        elif user_features is not None:
+            assert user_data is None, "Either user_data or user_features should be None"
+        else:
+            raise ValueError("Either user_data or user_features should be provided")
+
+        if self.normalize:
+            test_features = self.scaler.transform(test_features)
+            user_features = self.scaler.transform(user_features)
+
+        user_features = user_features[:, feature_subset]
+        test_features = test_features[:, feature_subset]
+
+        test_predictions = self.regressor_subset[tuple(feature_subset)].predict_proba(
+            test_features
+        )[:, 1]
+        user_predictions = self.regressor_subset[tuple(feature_subset)].predict_proba(
+            user_features
+        )[:, 1]
+
+        test = ftests.non_inferiority_ttest(
+            test_predictions, user_predictions, margin=margin
+        )
+
+        if test_power:
+            power = ftests.power_non_inferiority_ttest(
+                test_predictions, user_predictions, margin=margin
+            )
+            test["power"] = power
+
+        if get_sample_size:
+            sample_size = ftests.sample_size_non_inferiority_ttest(
+                test_predictions, user_predictions, power=0.8, margin=margin
+            )
+            test["sample_size_0.8_power"] = sample_size
+
+        if return_predictions:
+            test["test_predictions"] = test_predictions
+            test["user_predictions"] = user_predictions
+
+        return test
 
     def performance_equivalence_test(
         self,
