@@ -31,10 +31,10 @@ class SuitabilityFilter:
         self.regressor_features = None
         self.regressor_correct = None
         self.regressor = None
-        self.scaler = StandardScaler()
-        self.normalize = normalize
         self.regressor_subset = {}
-    
+
+        self.normalize = normalize
+        self.scaler = StandardScaler()
 
         self.test_features = None
         self.test_correct = None
@@ -64,7 +64,6 @@ class SuitabilityFilter:
                 # SIGNALS
                 # Confidence signals
                 softmax_outputs = F.softmax(outputs, dim=1)
-                conf_mean = softmax_outputs.mean(dim=1).cpu().numpy()
                 conf_max = softmax_outputs.max(dim=1)[0].cpu().numpy()
                 conf_std = softmax_outputs.std(dim=1).cpu().numpy()
                 conf_entropy = (
@@ -116,13 +115,6 @@ class SuitabilityFilter:
                     pred_class_loss - next_best_class_loss
                 )  # Difference in loss between top 2 classes
 
-                # Gradient Norm (L2 norm of the gradient wrt input)
-                # inputs.requires_grad = True
-                # loss_grad = F.cross_entropy(outputs, predictions)
-                # self.model.zero_grad()
-                # loss_grad.backward()
-                # grad_norm = inputs.grad.norm(2, dim=(1, 2, 3)).cpu().numpy()
-
                 # Class Probability Ratios
                 top_two_probs = (
                     torch.topk(softmax_outputs, 2, dim=1).values.cpu().numpy()
@@ -156,7 +148,6 @@ class SuitabilityFilter:
 
                     features = np.column_stack(
                         [
-                            # conf_mean,
                             conf_max,
                             conf_std,
                             conf_entropy,
@@ -166,7 +157,6 @@ class SuitabilityFilter:
                             logit_diff_top2,
                             loss,
                             margin_loss,
-                            # grad_norm,
                             class_prob_ratio,
                             top_k_probs_sum,
                             conf_corr,
@@ -179,7 +169,6 @@ class SuitabilityFilter:
                     # Combining all signals into a feature vector
                     features = np.column_stack(
                         [
-                            # conf_mean,
                             conf_max,
                             conf_std,
                             conf_entropy,
@@ -189,7 +178,6 @@ class SuitabilityFilter:
                             logit_diff_top2,
                             loss,
                             margin_loss,
-                            # grad_norm,
                             class_prob_ratio,
                             top_k_probs_sum,
                             energy,
