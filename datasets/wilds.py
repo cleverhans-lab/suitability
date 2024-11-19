@@ -84,76 +84,64 @@ class WILDSDataset(Dataset):
             if dataset_name == "fmow":
                 if key == "region":
                     key_ind = 0
-                    if value == "Asia":
-                        val_ind = 0
-                    elif value == "Europe":
-                        val_ind = 1
-                    elif value == "Africa":
-                        val_ind = 2
-                    elif value == "Americas":
-                        val_ind = 3
-                    elif value == "Oceania":
-                        val_ind = 4
-                    else:
-                        raise ValueError(f"Region {value} not supported")
+                    valid_regions = ["Asia", "Europe", "Africa", "Americas", "Oceania"]
+                    if not isinstance(value, list):
+                        value = [value]
+                    for region in value:
+                        if region not in valid_regions:
+                            raise ValueError(f"Region {region} not supported")
+                    val_inds = [valid_regions.index(region) for region in value]
                 elif key == "year":
                     key_ind = 1
-                    assert (
-                        value >= 2002 and value <= 2017
-                    ), "Year must be between 2002 and 2017"
-                    val_ind = value - 2002
+                    if not isinstance(value, list):
+                        value = [value]
+                    for year in value:
+                        if year < 2002 or year > 2017:
+                            raise ValueError("Year must be between 2002 and 2017")
+                    val_inds = [year - 2002 for year in value]
                 else:
                     raise ValueError(f"Filter property {key} not supported")
                 self.filtered_indices = [
                     i
                     for i in self.filtered_indices
-                    if self.dataset[i][2][key_ind] == val_ind
+                    if self.dataset[i][2][key_ind] in val_inds
                 ]
 
-            if dataset_name == "civilcomments":
+            elif dataset_name == "civilcomments":
                 if key == "sensitive":
-                    if value == "male":
-                        val_ind = 0
-                    elif value == "female":
-                        val_ind = 1
-                    elif value == "LGBTQ":
-                        val_ind = 2
-                    elif value == "christian":
-                        val_ind = 3
-                    elif value == "muslim":
-                        val_ind = 4
-                    elif value == "other_religions":
-                        val_ind = 5
-                    elif value == "black":
-                        val_ind = 6
-                    elif value == "white":
-                        val_ind = 7
+                    valid_sensitives = [
+                        "male", "female", "LGBTQ", "christian", "muslim", 
+                        "other_religions", "black", "white"
+                    ]
+                    if not isinstance(value, list):
+                        value = [value]
+                    for sensitive in value:
+                        if sensitive not in valid_sensitives:
+                            raise ValueError(f"Sensitive attribute {sensitive} not supported")
+                    val_inds = [valid_sensitives.index(sensitive) for sensitive in value]
                 else:
                     raise ValueError(f"Filter property {key} not supported")
                 self.filtered_indices = [
-                    i for i in self.filtered_indices if self.dataset[i][2][val_ind] == 1
+                    i for i in self.filtered_indices if any(self.dataset[i][2][val_ind] == 1 for val_ind in val_inds)
                 ]
 
-            if dataset_name == "rxrx1":
+            elif dataset_name == "rxrx1":
                 if key == "cell_type":
                     key_ind = 0
-                    if value == "HEPG2":
-                        val_ind = 0
-                    elif value == "HUVEC":
-                        val_ind = 1
-                    elif value == "RPE":
-                        val_ind = 2
-                    elif value == "U2OS":
-                        val_ind = 3
-                    else:
-                        raise ValueError(f"Cell type {value} not supported")
+                    valid_cell_types = ["HEPG2", "HUVEC", "RPE", "U2OS"]
+                    if not isinstance(value, list):
+                        value = [value]
+                    for cell_type in value:
+                        if cell_type not in valid_cell_types:
+                            raise ValueError(f"Cell type {cell_type} not supported")
+                    val_inds = [valid_cell_types.index(cell_type) for cell_type in value]
                 else:
                     raise ValueError(f"Filter property {key} not supported")
 
                 self.filtered_indices = [
                     i
                     for i in self.filtered_indices
-                    if self.dataset[i][2][key_ind] == val_ind
+                    if self.dataset[i][2][key_ind] in val_inds
                 ]
 
             else:
