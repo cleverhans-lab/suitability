@@ -16,7 +16,7 @@ def get_sf_features(data, model, device):
     model: the model used to calculate the features (torch model)
     device: the device used to calculate the features (torch device)
 
-    return: the features (signals) used by the regressor (numpy array), an binary array representing prediction correctness (numpy array)
+    return: the features (signals) used by the classifier (numpy array), an binary array representing prediction correctness (numpy array)
     """
     model.eval()
     all_features = []
@@ -131,17 +131,17 @@ class SuitabilityFilter:
         model,
         test_features,
         test_corr,
-        regressor_features,
-        regressor_corr,
+        classifier_features,
+        classifier_corr,
         device,
         normalize=True,
     ):
         """
         model: the model to be evaluated (torch model)
         test_data: the test data used to evaluate the model (torch dataset)
-        regressor_data: the sample used by the provider to train the regressor (torch dataset)
+        classifier_data: the sample used by the provider to train the classifier (torch dataset)
         device: the device used to evaluate the model (torch device)
-        use_labels: whether to use the GT labels for the regressor (bool)
+        use_labels: whether to use the GT labels for the classifier (bool)
         normalize: whether to normalize the features (bool)
 
         """
@@ -151,20 +151,20 @@ class SuitabilityFilter:
         self.test_features = test_features
         self.test_corr = test_corr
 
-        self.regressor_features = regressor_features
-        self.regressor_corr = regressor_corr
-        self.regressor = None
+        self.classifier_features = classifier_features
+        self.classifier_corr = classifier_corr
+        self.classifier = None
 
         self.normalize = normalize
         self.scaler = StandardScaler()
 
     def train_regressor(self, calibrated=True):
         """
-        Train the regressor using the regressor data
+        Train the regressor using the classifier data
 
-        calibrated: whether the regressor should be calibrated or not (bool)
+        calibrated: whether the classifier should be calibrated or not (bool)
         """
-        features, correct = self.regressor_features, self.regressor_corr
+        features, correct = self.classifier_features, self.classifier_corr
 
         if self.normalize:
             features = self.scaler.fit_transform(features)
@@ -172,9 +172,9 @@ class SuitabilityFilter:
         regression_model = LogisticRegression(max_iter=1000)
 
         if not calibrated:
-            self.regressor = regression_model.fit(features, correct)
+            self.classifier = regression_model.fit(features, correct)
         else:
-            self.regressor = CalibratedClassifierCV(
+            self.classifier = CalibratedClassifierCV(
                 estimator=regression_model, method="sigmoid", cv=5
             ).fit(features, correct)
 
@@ -189,13 +189,13 @@ class SuitabilityFilter:
         """
         Perform the suitability test
 
-        user_features: the features (signals) used by the regressor for the user data (numpy array)
+        user_features: the features (signals) used by the classifier for the user data (numpy array)
         margin: the margin used for the non-inferiority test (float)
         test_power: whether to calculate the test power (bool)
         get_sample_size: whether to calculate the sample size required for the test (bool)
         """
-        if self.regressor is None:
-            raise ValueError("Regressor not trained")
+        if self.classifier is None:
+            raise ValueError("Classifier not trained")
 
         test_features = self.test_features
 
@@ -203,8 +203,8 @@ class SuitabilityFilter:
             test_features = self.scaler.transform(test_features)
             user_features = self.scaler.transform(user_features)
 
-        test_predictions = self.regressor.predict_proba(test_features)[:, 1]
-        user_predictions = self.regressor.predict_proba(user_features)[:, 1]
+        test_predictions = self.classifier.predict_proba(test_features)[:, 1]
+        user_predictions = self.classifier.predict_proba(user_features)[:, 1]
 
         test = ftests.non_inferiority_ttest(
             test_predictions, user_predictions, margin=margin
