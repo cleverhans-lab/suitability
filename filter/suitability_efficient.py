@@ -2,10 +2,14 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from sklearn.calibration import CalibratedClassifierCV
+from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
+from sklearn.neural_network import MLPClassifier
+from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVC
+from sklearn.tree import DecisionTreeClassifier
 
 import suitability.filter.tests as ftests
-from sklearn.preprocessing import StandardScaler
 
 
 def get_sf_features(data, model, device):
@@ -135,14 +139,17 @@ class SuitabilityFilter:
         classifier_corr,
         device,
         normalize=True,
+        feature_subset=None,
     ):
         """
         model: the model to be evaluated (torch model)
-        test_data: the test data used to evaluate the model (torch dataset)
-        classifier_data: the sample used by the provider to train the classifier (torch dataset)
         device: the device used to evaluate the model (torch device)
-        use_labels: whether to use the GT labels for the classifier (bool)
+        test_features: the features (signals) used by the classifier for the test data (numpy array)
+        test_corr: the binary array representing prediction correctness for the test data (numpy array)
+        classifier_features: the features (signals) used by the classifier for the classifier data (numpy array)
+        classifier_corr: the binary array representing prediction correctness for the classifier data (numpy array)
         normalize: whether to normalize the features (bool)
+        feature_subset: the subset of features to be used (list of ints)
 
         """
         self.model = model
@@ -154,6 +161,7 @@ class SuitabilityFilter:
         self.classifier_features = classifier_features
         self.classifier_corr = classifier_corr
         self.classifier = None
+        self.feature_subset = feature_subset
 
         self.normalize = normalize
         self.scaler = StandardScaler()
@@ -166,6 +174,9 @@ class SuitabilityFilter:
         """
         features, correct = self.classifier_features, self.classifier_corr
 
+        if self.feature_subset is not None:
+            features = features[:, self.feature_subset]
+
         if self.normalize:
             features = self.scaler.fit_transform(features)
 
@@ -176,6 +187,41 @@ class SuitabilityFilter:
         else:
             self.classifier = CalibratedClassifierCV(
                 estimator=regression_model, method="sigmoid", cv=5
+            ).fit(features, correct)
+
+    def train_classifier(self, classifier="logistic_regression", calibrated=True):
+        """
+        Train the regressor using the classifier data
+
+        classifier: the classifier to be used (str)
+        calibrated: whether the classifier should be calibrated or not (bool)
+        """
+        features, correct = self.classifier_features, self.classifier_corr
+
+        if self.feature_subset is not None:
+            features = features[:, self.feature_subset]
+
+        if self.normalize:
+            features = self.scaler.fit_transform(features)
+
+        if classifier == "logistic_regression":
+            base_model = LogisticRegression(max_iter=1000)
+        elif classifier == "svm":
+            base_model = SVC(probability=True)
+        elif classifier == "random_forest":
+            base_model = RandomForestClassifier()
+        elif classifier == "gradient_boosting":
+            base_model = GradientBoostingClassifier()
+        elif classifier == "mlp":
+            base_model = MLPClassifier(max_iter=1000)
+        elif classifier == "decision_tree":
+            base_model = DecisionTreeClassifier()
+
+        if not calibrated:
+            self.classifier = base_model.fit(features, correct)
+        else:
+            self.classifier = CalibratedClassifierCV(
+                estimator=base_model, method="sigmoid", cv=5
             ).fit(features, correct)
 
     def suitability_test(
@@ -198,6 +244,10 @@ class SuitabilityFilter:
             raise ValueError("Classifier not trained")
 
         test_features = self.test_features
+
+        if self.feature_subset is not None:
+            test_features = test_features[:, self.feature_subset]
+            user_features = user_features[:, self.feature_subset]
 
         if self.normalize:
             test_features = self.scaler.transform(test_features)
