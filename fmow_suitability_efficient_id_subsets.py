@@ -36,7 +36,7 @@ valid_id_splits = [
 
 # Configuration
 data_name = "fmow"
-root_dir = "/mfsnic/u/apouget/"
+root_dir = "/mfsnic/projects/suitability/"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Load the model
@@ -211,5 +211,5 @@ for user_split_name, user_filter in valid_id_splits:
 # Save results
 sf_evals = pd.DataFrame(sf_results)
 sf_evals.to_csv(
-    "results/sf_evals/erm/fmow_sf_results_id_subsets.csv", index=False
+    "suitability/results/sf_evals/erm/fmow_sf_results_id_subsets.csv", index=False
 )
