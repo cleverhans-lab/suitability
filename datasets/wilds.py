@@ -155,7 +155,7 @@ class WILDSDataset(Dataset):
 
 
 def get_wilds_dataset(
-    dataset_name, root_dir, split, batch_size, shuffle, num_workers, pre_filter={}
+    dataset_name, root_dir, split, batch_size, shuffle, num_workers, pre_filter={}, return_indices=False
 ):
     """
     dataset_name: the name of the dataset (string)
@@ -165,6 +165,7 @@ def get_wilds_dataset(
     shuffle: whether to shuffle the data (bool)
     num_workers: the number of workers (int)
     pre_filter: the filter to be applied to the data (dict)
+    return_indices: whether to return the indices of the data
     """
 
     assert dataset_name in [
@@ -188,6 +189,8 @@ def get_wilds_dataset(
         shuffle=shuffle,
         num_workers=num_workers,
     )
+    if return_indices:
+        return dataloader, dataset.filtered_indices
     return dataloader
 
 
