@@ -17,7 +17,7 @@ def get_sf_features(data, model, device):
     Get the features (signals) used by the suitability filter
 
     data: the data we want to calculate the features for (torch dataset)
-    model: the model used to calculate the features (torch model)
+    model: the model to be evaluated and used to calculate the features (torch model)
     device: the device used to calculate the features (torch device)
 
     return: the features (signals) used by the classifier (numpy array), an binary array representing prediction correctness (numpy array)
@@ -132,7 +132,6 @@ def get_sf_features(data, model, device):
 class SuitabilityFilter:
     def __init__(
         self,
-        model,
         test_features,
         test_corr,
         classifier_features,
@@ -142,7 +141,6 @@ class SuitabilityFilter:
         feature_subset=None,
     ):
         """
-        model: the model to be evaluated (torch model)
         device: the device used to evaluate the model (torch device)
         test_features: the features (signals) used by the classifier for the test data (numpy array)
         test_corr: the binary array representing prediction correctness for the test data (numpy array)
@@ -152,7 +150,6 @@ class SuitabilityFilter:
         feature_subset: the subset of features to be used (list of ints)
 
         """
-        self.model = model
         self.device = device
 
         self.test_features = test_features
