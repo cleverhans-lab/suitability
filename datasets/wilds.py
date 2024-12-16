@@ -110,19 +110,31 @@ class WILDSDataset(Dataset):
             elif dataset_name == "civilcomments":
                 if key == "sensitive":
                     valid_sensitives = [
-                        "male", "female", "LGBTQ", "christian", "muslim", 
-                        "other_religions", "black", "white"
+                        "male",
+                        "female",
+                        "LGBTQ",
+                        "christian",
+                        "muslim",
+                        "other_religions",
+                        "black",
+                        "white",
                     ]
                     if not isinstance(value, list):
                         value = [value]
                     for sensitive in value:
                         if sensitive not in valid_sensitives:
-                            raise ValueError(f"Sensitive attribute {sensitive} not supported")
-                    val_inds = [valid_sensitives.index(sensitive) for sensitive in value]
+                            raise ValueError(
+                                f"Sensitive attribute {sensitive} not supported"
+                            )
+                    val_inds = [
+                        valid_sensitives.index(sensitive) for sensitive in value
+                    ]
                 else:
                     raise ValueError(f"Filter property {key} not supported")
                 self.filtered_indices = [
-                    i for i in self.filtered_indices if any(self.dataset[i][2][val_ind] == 1 for val_ind in val_inds)
+                    i
+                    for i in self.filtered_indices
+                    if any(self.dataset[i][2][val_ind] == 1 for val_ind in val_inds)
                 ]
 
             elif dataset_name == "rxrx1":
@@ -134,7 +146,9 @@ class WILDSDataset(Dataset):
                     for cell_type in value:
                         if cell_type not in valid_cell_types:
                             raise ValueError(f"Cell type {cell_type} not supported")
-                    val_inds = [valid_cell_types.index(cell_type) for cell_type in value]
+                    val_inds = [
+                        valid_cell_types.index(cell_type) for cell_type in value
+                    ]
                 else:
                     raise ValueError(f"Filter property {key} not supported")
 
@@ -155,7 +169,14 @@ class WILDSDataset(Dataset):
 
 
 def get_wilds_dataset(
-    dataset_name, root_dir, split, batch_size, shuffle, num_workers, pre_filter={}, return_indices=False
+    dataset_name,
+    root_dir,
+    split,
+    batch_size,
+    shuffle,
+    num_workers,
+    pre_filter={},
+    return_indices=False,
 ):
     """
     dataset_name: the name of the dataset (string)
@@ -254,7 +275,7 @@ def get_wilds_model(dataset_name, root_dir, algorithm, seed=0, model_type="last"
             )
     except:
         raise ValueError(
-            f"Model not found for dataset {dataset_name}, algorithm {algorithm}, seed {seed}, model type {model_type}"
+            f"Model not found for dataset {dataset_name}, algorithm {algorithm}, seed {seed}, model type {model_type}, path: {root_dir}/{dataset_name}/{dataset_name}_seed:{seed}_epoch:{model_type}_model.pth"
         )
 
     model.load_state_dict(state_dict)

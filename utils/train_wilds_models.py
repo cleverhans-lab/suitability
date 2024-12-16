@@ -2,8 +2,8 @@
 import time
 import os
 
-datasets = ["rxrx1", "amazon", "civilcomments", "fmow", "iwildcam"]
-seeds = [0]
+datasets = ["fmow"]
+seeds = [1, 2]
 algorithms = ["groupDRO", "IRM"]
 
 if not os.path.isdir('./job_files'):
