@@ -2,7 +2,7 @@
 import time
 import os
 
-datasets = ["fmow"]
+datasets = ["civilcomments", "rxrx1"]
 seeds = [1, 2]
 algorithms = ["groupDRO", "IRM"]
 
