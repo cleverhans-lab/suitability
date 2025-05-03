@@ -37,7 +37,6 @@ The Suitability Filter tackles this challenge by:
 ## Key Contributions & Features
 
 
-
 1.  **Principled Framework:** Introduces suitability filters for detecting model performance deterioration during deployment using unlabeled user data.
 2.  **Statistical Guarantees:** Leverages hypothesis testing to provide statistical grounding and control over the false positive rate (incorrectly deeming an unsuitable model as suitable) via a significance level `alpha`.
 3.  **Theoretical Analysis:** Provides conditions (δ-calibration) and practical margin adjustments to maintain false positive rate control even with imperfect correctness estimators.
@@ -48,19 +47,14 @@ The Suitability Filter tackles this challenge by:
 
 1.  **Clone the repository:**
     ```bash
-    git clone [https://github.com/your-username/suitability-filter.git](https://github.com/your-username/suitability-filter.git) # Replace with actual URL
-    cd suitability-filter
+    git clone [https://github.com/cleverhans-lab/suitability.git](https://github.com/cleverhans-lab/suitability.git)
+    cd suitability
     ```
 
-2.  **Create a virtual environment (optional but recommended):**
+2.  **Create a virtual environment and install dependencies:**
     ```bash
-    python -m venv venv
-    source venv/bin/activate # On Windows use `venv\Scripts\activate`
-    ```
-
-3.  **Install dependencies:**
-    ```bash
-    pip install -r requirements.txt
+    conda env create -f requirements.txt -n suitability_env
+    conda activate suitability_env
     ```
 
 ## Usage
@@ -88,7 +82,7 @@ python run_filter.py \
     --output_dir /path/to/results
 ```
 
-The script will output the suitability decision (`SUITABLE` or `INCONCLUSIVE`) and potentially other details like the p-value of the test.
+The script will output the suitability decision (`SUITABLE` or `INCONCLUSIVE`) and other details like the p-value of the test.
 
 ## Experiments and Results
 We evaluated the suitability filter extensively on datasets from the WILDS benchmark exhibiting real-world distribution shifts:
@@ -103,7 +97,8 @@ Key findings include:
 * Combining multiple suitability signals generally yields robust performance.
 * Performance depends on factors like the magnitude of the accuracy difference, the chosen margin `m`, and the significance level `alpha`.
 
-![Sensitivity Plot](path/to/figure4.png) *Figure: Sensitivity of SUITABLE decisions to accuracy differences on FMOW-WILDS (m=0, alpha=0.05).*
+![Sensitivity Plot](results/figures/suitability_sensitivity.pdf) *Figure: Sensitivity of SUITABLE decisions to accuracy differences on FMOW-WILDS (m=0, alpha=0.05).*
+<img src="results/figures/suitability_sensitivity.pdf" alt="Alt text for your SVG" width="200"/>
 
 Refer to the paper (Section 5 and Appendix A.4) for detailed results, ablations (signals, calibration, model choices), and analysis.
 
