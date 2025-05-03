@@ -97,8 +97,8 @@ Key findings include:
 * Combining multiple suitability signals generally yields robust performance.
 * Performance depends on factors like the magnitude of the accuracy difference, the chosen margin `m`, and the significance level `alpha`.
 
-![Sensitivity Plot](results/figures/suitability_sensitivity.pdf) *Figure: Sensitivity of SUITABLE decisions to accuracy differences on FMOW-WILDS (m=0, alpha=0.05).*
-<img src="results/figures/suitability_sensitivity.pdf" alt="Alt text for your SVG" width="200"/>
+![Sensitivity Plot](results/figures/suitability_sensitivity.png) *Figure: Sensitivity of SUITABLE decisions to accuracy differences on FMOW-WILDS (m=0, alpha=0.05).*
+<img src="results/figures/suitability_sensitivity.png" alt="Alt text for your SVG" width="200"/>
 
 Refer to the paper (Section 5 and Appendix A.4) for detailed results, ablations (signals, calibration, model choices), and analysis.
 
