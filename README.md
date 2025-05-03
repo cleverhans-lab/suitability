@@ -32,10 +32,11 @@ The Suitability Filter tackles this challenge by:
     * *Alternative Hypothesis (H1):* `mean(p_c(D_u)) >= mean(p_c(D_test)) - m` (Model is suitable)
 6.  **Making a Decision:** Outputting `SUITABLE` if H0 is rejected (p-value <= significance level `alpha`), otherwise `INCONCLUSIVE`.
 
-![Framework Schematic](results/figures/suitability_filter.png) 
+<div align="center">
+  <img src="results/figures/suitability_filter.png" alt="Schematic overview of the suitability filter." width="600"/>
+</div>
 
 ## Key Contributions & Features
-
 
 1.  **Principled Framework:** Introduces suitability filters for detecting model performance deterioration during deployment using unlabeled user data.
 2.  **Statistical Guarantees:** Leverages hypothesis testing to provide statistical grounding and control over the false positive rate (incorrectly deeming an unsuitable model as suitable) via a significance level `alpha`.
@@ -59,7 +60,7 @@ The Suitability Filter tackles this challenge by:
 
 ## Usage
 
-*(Please adapt this section based on your actual code structure)*
+*TO BE CONTINUED*
 
 To run the suitability filter, you can use the main script (e.g., `run_filter.py`). You will typically need to provide:
 
