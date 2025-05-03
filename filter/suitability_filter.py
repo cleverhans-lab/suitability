@@ -31,7 +31,7 @@ def get_sf_features(data, model, device):
             inputs, labels = batch[0].to(device), batch[1].to(device)
             outputs = model(inputs)
 
-            # CORRECTNESS
+            # PREDICTION CORRECTNESS
             predictions = torch.argmax(outputs, dim=1)
             correct = (predictions == labels).cpu().numpy()
             all_correct.extend(correct)
