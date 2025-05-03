@@ -4,7 +4,7 @@
 
 This repository contains the official implementation for the paper:
 
-**Suitability Filter: A Statistical Framework for Model Evaluation in Real-World Deployment Settings** \
+**Suitability Filter: A Statistical Framework for Classifier Evaluation in Real-World Deployment Settings** \
 *Angéline Pouget, Mohammad Yaghini, Stephan Rabanser, Nicolas Papernot* \
 *Proceedings of the 41st International Conference on Machine Learning (ICML), PMLR 267, 2025.*
 
@@ -48,7 +48,7 @@ The Suitability Filter tackles this challenge by:
 
 1.  **Clone the repository:**
     ```bash
-    git clone [https://github.com/cleverhans-lab/suitability.git](https://github.com/cleverhans-lab/suitability.git)
+    git clone https://github.com/cleverhans-lab/suitability.git
     cd suitability
     ```
 
@@ -94,7 +94,7 @@ We evaluated the suitability filter extensively on datasets from the WILDS bench
 
 Key findings include:
 
-* The filter reliably detects performance drops. For example, on FMOW-WILDS, it achieved 100% accuracy in identifying performance deteriorations greater than 3% (for m=0, alpha=0.05).
+* The filter reliably detects performance drops. For example, on FMOW-WILDS, it achieves 100% accuracy in identifying performance deteriorations greater than 3% (for `m`=0, `alpha`=0.05) as can be seen in the figure below.
 * Combining multiple suitability signals generally yields robust performance.
 * Performance depends on factors like the magnitude of the accuracy difference, the chosen margin `m`, and the significance level `alpha`.
 
@@ -109,7 +109,7 @@ If you find this work useful in your research, please cite our paper:
 
 ```bibtex
 @inproceedings{pouget2025suitability,
-  title={Suitability Filter: A Statistical Framework for Model Evaluation in Real-World Deployment Settings},
+  title={Suitability Filter: A Statistical Framework for Classifier Evaluation in Real-World Deployment Settings},
   author={Pouget, Ang{\'e}line and Yaghini, Mohammad and Rabanser, Stephan and Papernot, Nicolas},
   booktitle={Proceedings of the 41st International Conference on Machine Learning},
   volume={267},
