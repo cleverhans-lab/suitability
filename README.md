@@ -6,7 +6,7 @@ This repository contains the official implementation for the paper:
 
 **Suitability Filter: A Statistical Framework for Classifier Evaluation in Real-World Deployment Settings** \
 *Angéline Pouget, Mohammad Yaghini, Stephan Rabanser, Nicolas Papernot* \
-*Proceedings of the 41st International Conference on Machine Learning (ICML), PMLR 267, 2025.*
+*Proceedings of the 42nd International Conference on Machine Learning (ICML), PMLR 267, 2025.*
 
 [Link to Paper] 
 
@@ -90,7 +90,7 @@ If you find this work useful in your research, please cite our paper:
 @inproceedings{pouget2025suitability,
   title={Suitability Filter: A Statistical Framework for Classifier Evaluation in Real-World Deployment Settings},
   author={Pouget, Ang{\'e}line and Yaghini, Mohammad and Rabanser, Stephan and Papernot, Nicolas},
-  booktitle={Proceedings of the 41st International Conference on Machine Learning},
+  booktitle={Proceedings of the 42nd International Conference on Machine Learning},
   volume={267},
   year={2025},
   publisher={PMLR}
