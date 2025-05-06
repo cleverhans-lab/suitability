@@ -60,7 +60,7 @@ The Suitability Filter tackles this challenge by:
 
 ## Usage
 
-*TO BE CONTINUED*
+For a simple introduction on how to use the suitability filter (code in `filter/`), please refer to `example.ipynb`. This should give you a good idea of how you can use the suitability filter framework with your own data and models.
 
 The script will output the suitability decision (`SUITABLE` or `INCONCLUSIVE`) and other details like the p-value of the test.
 
@@ -81,7 +81,7 @@ Key findings include:
   <img src="results/figures/suitability_sensitivity.png" alt="Sensitivity of SUITABLE decisions to accuracy differences on FMOW-WILDS (m=0, alpha=0.05)." width="600"/>
 </div>
 
-Refer to the paper (Section 5 and Appendix A.4) for detailed results, ablations (signals, calibration, model choices), and analysis.
+Refer to the paper (Section 5 and Appendix A.4) for detailed results, ablations (signals, calibration, model choices), and analysis. The code for these experiments can be found in `wilds_experiments.ipynb` and in `utils/`. 
 
 ## Citation
 If you find this work useful in your research, please cite our paper:
