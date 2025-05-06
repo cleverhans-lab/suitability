@@ -6,7 +6,7 @@ This repository contains the official implementation for the paper:
 
 **Suitability Filter: A Statistical Framework for Classifier Evaluation in Real-World Deployment Settings** \
 *Angéline Pouget, Mohammad Yaghini, Stephan Rabanser, Nicolas Papernot* \
-*Proceedings of the 41st International Conference on Machine Learning (ICML), PMLR 267, 2025.*
+*Proceedings of the 42nd International Conference on Machine Learning (ICML), PMLR 267, 2025.*
 
 [Link to Paper] 
 
@@ -62,27 +62,6 @@ The Suitability Filter tackles this challenge by:
 
 *TO BE CONTINUED*
 
-To run the suitability filter, you can use the main script (e.g., `run_filter.py`). You will typically need to provide:
-
-* The dataset name (e.g., `fmow`, `rxrx1`, `civilcomments`).
-* Paths to the trained base model (`M`), test data (`D_test`), user data (`D_u`), and the holdout set for training the correctness estimator (`D_sf`).
-* The performance margin (`m`).
-* The significance level (`alpha`).
-
-**Example Command:**
-
-```bash
-python run_filter.py \
-    --dataset_name fmow \
-    --model_path /path/to/trained/model.pth \
-    --test_data_path /path/to/test_data.csv \
-    --user_data_path /path/to/user_data.csv \
-    --sf_data_path /path/to/sf_data.csv \
-    --margin 0.05 \
-    --alpha 0.05 \
-    --output_dir /path/to/results
-```
-
 The script will output the suitability decision (`SUITABLE` or `INCONCLUSIVE`) and other details like the p-value of the test.
 
 ## Experiments and Results
@@ -111,7 +90,7 @@ If you find this work useful in your research, please cite our paper:
 @inproceedings{pouget2025suitability,
   title={Suitability Filter: A Statistical Framework for Classifier Evaluation in Real-World Deployment Settings},
   author={Pouget, Ang{\'e}line and Yaghini, Mohammad and Rabanser, Stephan and Papernot, Nicolas},
-  booktitle={Proceedings of the 41st International Conference on Machine Learning},
+  booktitle={Proceedings of the 42nd International Conference on Machine Learning},
   volume={267},
   year={2025},
   publisher={PMLR}
