@@ -81,7 +81,9 @@ Key findings include:
   <img src="results/figures/suitability_sensitivity.png" alt="Sensitivity of SUITABLE decisions to accuracy differences on FMOW-WILDS (m=0, alpha=0.05)." width="600"/>
 </div>
 
-Refer to the paper (Section 5 and Appendix A.4) for detailed results, ablations (signals, calibration, model choices), and analysis. The code for these experiments can be found in `wilds_experiments.ipynb` and in `utils/`. 
+Refer to the paper (Section 5 and Appendix A.4) for detailed results, ablations (signals, calibration, model choices), and analysis. The code for these experiments can be found in `wilds_experiments.ipynb` and in `utils/`. If you're interested in all our work-in-progress code, or want to contribute in any way, please refer to our development branch:
+
+[View the `dev` branch on GitHub](https://github.com/cleverhans-lab/suitability/tree/dev)
 
 ## Citation
 If you find this work useful in your research, please cite our paper:
