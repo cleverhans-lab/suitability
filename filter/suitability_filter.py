@@ -9,7 +9,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 
-import suitability.filter.tests as ftests
+import filter.tests as ftests
 
 
 def get_sf_features(data, model, device):
