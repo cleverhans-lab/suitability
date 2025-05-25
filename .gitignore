@@ -165,4 +165,5 @@ wandb/
 out_err_slurm/
 job_files/
 results/sf_evals/
+data/
 
