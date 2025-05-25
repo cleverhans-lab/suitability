@@ -40,8 +40,8 @@ The Suitability Filter tackles this challenge by:
 
 1.  **Principled Framework:** Introduces suitability filters for detecting model performance deterioration during deployment using unlabeled user data.
 2.  **Statistical Guarantees:** Leverages hypothesis testing to provide statistical grounding and control over the false positive rate (incorrectly deeming an unsuitable model as suitable) via a significance level `alpha`.
-3.  **Theoretical Analysis:** Provides conditions (δ-calibration) and practical margin adjustments to maintain false positive rate control even with imperfect correctness estimators.
-4.  **Empirical Validation:** Demonstrates effectiveness across extensive experiments (~29k) on challenging real-world distribution shift benchmarks (WILDS: FMOW, RxRx1, CivilComments).
+3.  **Theoretical Analysis:** Provides conditions and practical margin adjustments to maintain false positive rate control even with imperfect correctness estimators.
+4.  **Empirical Validation:** Demonstrates effectiveness across extensive experiments on challenging real-world distribution shift benchmarks (WILDS: FMoW, RxRx1, CivilComments).
 5.  **Modularity:** The framework is adaptable to different signals, models, and potentially other performance metrics or testing scenarios (e.g., equivalence testing, continuous monitoring).
 
 ## Installation
@@ -67,13 +67,13 @@ The script will output the suitability decision (`SUITABLE` or `INCONCLUSIVE`) a
 ## Experiments and Results
 We evaluated the suitability filter extensively on datasets from the WILDS benchmark exhibiting real-world distribution shifts:
 
-* **FMOW-WILDS:** Satellite imagery (temporal/geographical shifts)
+* **FMoW-WILDS:** Satellite imagery (temporal/geographical shifts)
 * **RxRx1-WILDS:** Cellular microscopy (batch effects)
 * **CivilComments-WILDS:** Text toxicity (subpopulation shifts)
 
 Key findings include:
 
-* The filter reliably detects performance drops. For example, on FMOW-WILDS, it achieves 100% accuracy in identifying performance deteriorations greater than 3% (for `m`=0, `alpha`=0.05) as can be seen in the figure below.
+* The filter reliably detects performance drops. For example, on FMoW-WILDS, it achieves 100% accuracy in identifying performance deteriorations greater than 3% (for `m`=0, `alpha`=0.05) across over 29k individual experiments as can be seen in the figure below.
 * Combining multiple suitability signals generally yields robust performance.
 * Performance depends on factors like the magnitude of the accuracy difference, the chosen margin `m`, and the significance level `alpha`.
 
