@@ -8,7 +8,7 @@ This repository contains the official implementation for the paper:
 *Angéline Pouget, Mohammad Yaghini, Stephan Rabanser, Nicolas Papernot* \
 *Proceedings of the 42nd International Conference on Machine Learning (ICML), PMLR 267, 2025.*
 
-[Link to Paper] 
+[Link to Paper](https://arxiv.org/abs/2505.22356)
 
 ## Abstract
 
